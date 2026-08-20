@@ -58,7 +58,13 @@ public sealed class InstanceGate : IDisposable
     /// <summary>Bound on a single payload, so a malformed length cannot ask for a huge allocation.</summary>
     private const int MaxPayloadBytes = 64 * 1024;
 
-    private readonly NamedPipeServerStream _server;
+    /// <summary>How many consecutive failed accepts mean the instance is wedged rather than unlucky.
+    /// A client that connects and vanishes before the accept returns can leave the handle in a state
+    /// where WaitForConnection throws ERROR_PIPE_CLOSING for ever, and Disconnect does not clear it.</summary>
+    private const int WedgedAfter = 5;
+
+    // Not readonly: a wedged instance is replaced, see AcceptLoop. Written only by the accept thread.
+    private volatile NamedPipeServerStream _server;
     private readonly ConcurrentQueue<HandoffRequest> _incoming = new();
     private readonly ILogger? _log;
     private Thread? _thread;
@@ -245,12 +251,30 @@ public sealed class InstanceGate : IDisposable
         // loop is never reclaimed until the method returns, so a long-lived instance would leak
         // four bytes of stack per hand-off (CA2014).
         Span<byte> header = stackalloc byte[4];
+        var failures = 0;
 
         while (!_stopping)
         {
+            // A wedged handle cannot be recovered by disconnecting it, so replace it. This is the one
+            // place the pipe NAME is released and retaken, which normally must never happen -- but the
+            // alternative here is an instance that has stopped accepting for good, so a window of
+            // microseconds in which another process could claim primacy is the better of the two. It is
+            // reached only after WedgedAfter consecutive failures, so an unlucky connection cannot
+            // trigger it.
+            if (failures >= WedgedAfter)
+            {
+                if (!TryReplaceWedgedServer())
+                {
+                    return;
+                }
+
+                failures = 0;
+            }
+
             try
             {
                 _server.WaitForConnection();
+                failures = 0;
                 if (_stopping)
                 {
                     break;
@@ -281,24 +305,68 @@ public sealed class InstanceGate : IDisposable
                     }
                 }
             }
-            catch (Exception ex) when (!_stopping)
+            catch (Exception ex)
             {
+                // Shutdown is read off the FLAG, not inferred from the exception, and deliberately not
+                // expressed as a filter. A filter that declines does not swallow the exception: it
+                // leaves AcceptLoop and goes unhandled on this thread, which takes the whole process
+                // down. Disposing while a connection is in flight is common enough under load to do
+                // exactly that -- measured on Linux, 4 cores, 8 gates at a time, where it killed a
+                // 400-round harness outright rather than failing a round.
+                if (_stopping)
+                {
+                    return;
+                }
+
                 _log?.LogDebug(ex, "Instance gate connection failed on {Channel}", Channel);
+                failures++;
+
+                // Cheap insurance against a spin: if the wait itself is failing immediately rather
+                // than a client misbehaving, this bounds it to 20/s instead of a burnt core. A
+                // hand-off is human-paced, so the delay costs nothing anyone can perceive.
+                Thread.Sleep(50);
             }
             finally
             {
                 try
                 {
-                    if (_server.IsConnected)
-                    {
-                        _server.Disconnect();
-                    }
+                    // Unconditional, and this matters: IsConnected tracks the LOCAL handle and goes
+                    // false as soon as a read hits end-of-stream, while the instance still needs an
+                    // explicit Disconnect before it will accept another client. Gating this on
+                    // IsConnected means a hand-off whose client gave up before writing leaves the
+                    // instance connected for ever, and every later hand-off finds a listener that
+                    // throws instead of accepting.
+                    _server.Disconnect();
                 }
                 catch (Exception)
                 {
-                    // A disconnect that fails during teardown has nothing left to protect.
+                    // Was not connected, or teardown is already under way. Nothing left to protect.
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the server instance after it has stopped accepting. Returns false when the name
+    /// cannot be retaken, which means somebody else now holds it and this gate is finished.
+    /// </summary>
+    private bool TryReplaceWedgedServer()
+    {
+        _log?.LogWarning("Instance gate on {Channel} stopped accepting; rebuilding the listener", Channel);
+        try
+        {
+            _server.Dispose();
+            _server = new NamedPipeServerStream(Channel, PipeDirection.InOut,
+                maxNumberOfServerInstances: 1, PipeTransmissionMode.Byte, PipeOptions.None);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // Somebody claimed the name in the window above, or the OS will not give it back. Ending
+            // the loop is right: this process is no longer the holder, and pretending otherwise would
+            // leave later launches handing documents to a listener that is not there.
+            _log?.LogWarning(ex, "Instance gate on {Channel} could not be rebuilt; no longer listening", Channel);
+            return false;
         }
     }
 

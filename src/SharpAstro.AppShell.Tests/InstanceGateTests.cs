@@ -1,3 +1,4 @@
+using System.IO.Pipes;
 using Shouldly;
 using Xunit;
 
@@ -148,6 +149,53 @@ public class InstanceGateTests
 
         gate.Dispose();
         Should.NotThrow(() => gate.Dispose());
+    }
+
+    [Fact]
+    public void Disposing_while_a_hand_off_is_in_flight_does_not_take_the_process_down()
+    {
+        // The accept loop must survive its own shutdown. It used to catch through a filter on the
+        // stopping flag, and a filter that declines does not swallow: the exception left AcceptLoop,
+        // went unhandled on that thread, and killed the PROCESS -- so this does not fail as a red
+        // test, it fails by taking the run with it. That is also why it is a loop rather than one
+        // shot: the window is between a client connecting and the accept thread reading, and on a
+        // busy machine it takes a handful of attempts to land in it.
+        //
+        // Cross-platform on purpose. It was found on Linux, where a named pipe is a Unix-domain
+        // socket and the timing differs enough to hit the window far more often, but nothing about
+        // the defect was Linux-specific.
+        for (var i = 0; i < 40; i++)
+        {
+            var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity($"dispose-race-{i}"));
+            var gate = InstanceGate.TryClaim(channel);
+            gate.ShouldNotBeNull();
+
+            // Do not wait for it to arrive: the point is to dispose WHILE it is in flight.
+            InstanceGate.TryHandOff(channel, "in-flight", TimeSpan.FromSeconds(5));
+            Should.NotThrow(gate.Dispose);
+        }
+    }
+
+    [Fact]
+    public async Task A_client_that_gives_up_before_writing_does_not_deafen_the_holder()
+    {
+        // A hand-off can die between the holder accepting and the payload arriving -- the launcher is
+        // killed, or the pipe breaks. Releasing the connection used to be gated on IsConnected, which
+        // tracks the LOCAL handle and is already false by then, so the instance was never disconnected
+        // and every later hand-off met a listener that could only throw. One lost double-click is
+        // acceptable; a holder that is deaf from then on is not.
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("abandoned"));
+        using var gate = InstanceGate.TryClaim(channel);
+        gate.ShouldNotBeNull();
+
+        using (var abandoned = new NamedPipeClientStream(".", channel, PipeDirection.InOut))
+        {
+            abandoned.Connect(5_000);
+            // Connected, and now gone without ever sending a length.
+        }
+
+        InstanceGate.TryHandOff(channel, "after", TimeSpan.FromSeconds(5)).ShouldBeTrue();
+        (await Dequeue(gate)).Payload.ShouldBe("after");
     }
 
     [Theory]
