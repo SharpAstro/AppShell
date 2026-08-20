@@ -116,6 +116,21 @@ public class InstanceGateTests
     }
 
     [Fact]
+    public async Task An_empty_payload_arrives_as_an_activate_only_request()
+    {
+        // What an app with no file associations needs: a second launch has nothing to open but
+        // still wants the running window in front. Dropping it would let a whole-app gate claim
+        // primacy and then do nothing with it, which looks exactly like the gate not working.
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("activate-only"));
+        using var gate = InstanceGate.TryClaim(channel);
+        gate.ShouldNotBeNull();
+
+        InstanceGate.TryHandOff(channel, string.Empty, TimeSpan.FromSeconds(5)).ShouldBeTrue();
+
+        (await Dequeue(gate)).Payload.ShouldBe(string.Empty);
+    }
+
+    [Fact]
     public void A_handoff_to_nobody_returns_false_rather_than_throwing()
     {
         // The caller's next move is to open the document itself, so this must be a return value.

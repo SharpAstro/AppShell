@@ -9,6 +9,10 @@ namespace SharpAstro.AppShell;
 /// <summary>
 /// One thing a later launch asked the running instance to do -- normally the path of a file the
 /// user double-clicked in the shell.
+///
+/// <para>An EMPTY payload is a legitimate request meaning "activate only": a second launch of an
+/// app with no file associations has nothing to open, but still wants the existing window in
+/// front. Consumers should treat it as a raise with no document change.</para>
 /// </summary>
 public readonly record struct HandoffRequest(string Payload);
 
@@ -228,6 +232,11 @@ public sealed class InstanceGate : IDisposable
 
     private void AcceptLoop()
     {
+        // One buffer for the life of the loop, not one per connection: a stackalloc inside the
+        // loop is never reclaimed until the method returns, so a long-lived instance would leak
+        // four bytes of stack per hand-off (CA2014).
+        Span<byte> header = stackalloc byte[4];
+
         while (!_stopping)
         {
             try
@@ -243,11 +252,17 @@ public sealed class InstanceGate : IDisposable
                 _server.Write(BitConverter.GetBytes(Environment.ProcessId));
                 _server.Flush();
 
-                Span<byte> header = stackalloc byte[4];
                 if (ReadExactly(_server, header))
                 {
                     var length = BitConverter.ToInt32(header);
-                    if (length > 0 && length <= MaxPayloadBytes)
+                    if (length == 0)
+                    {
+                        // Activate-only: a launch that has nothing to open still wants the
+                        // existing window in front. Dropping this would make a whole-app gate
+                        // claim primacy and then do nothing with it.
+                        Enqueue(new HandoffRequest(string.Empty));
+                    }
+                    else if (length > 0 && length <= MaxPayloadBytes)
                     {
                         var buffer = new byte[length];
                         if (ReadExactly(_server, buffer))
