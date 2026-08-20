@@ -24,25 +24,40 @@ namespace SharpAstro.AppShell;
 public static partial class ForegroundActivation
 {
     /// <summary>
-    /// Grant <paramref name="processId"/> the right to bring its window to the front. Best-effort:
-    /// a false return from the OS is not actionable and is not reported, because the fallback (a
-    /// flashing taskbar button) is already the behaviour we are trying to improve on.
+    /// Grant <paramref name="processId"/> the right to bring its window to the front. Returns
+    /// whether the grant was made, which is NOT the same question as whether the window then came
+    /// forward.
+    ///
+    /// <para>The distinction is the whole reason this reports anything. The OS refuses the grant
+    /// when the CALLER does not itself hold the foreground right -- which is normal for a process
+    /// started by a script rather than by a user's double-click. Without this return value, that
+    /// case and a genuinely broken raise are indistinguishable: both look like a window that
+    /// flashed its taskbar button and stayed put.</para>
+    ///
+    /// <para>Always true off Windows, where nothing needs granting; a false is never fatal, because
+    /// the fallback is the taskbar flash this is trying to improve on.</para>
     /// </summary>
-    public static void AllowFor(int processId)
+    public static bool AllowFor(int processId)
     {
-        if (processId <= 0 || !OperatingSystem.IsWindows())
+        if (processId <= 0)
         {
-            return;
+            return false;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
         }
 
         try
         {
-            _ = AllowSetForegroundWindow((uint)processId);
+            return AllowSetForegroundWindow((uint)processId);
         }
         catch (Exception)
         {
             // A missing entry point on some future Windows edition must not break a hand-off whose
             // payload has not been sent yet.
+            return false;
         }
     }
 

@@ -195,7 +195,16 @@ public sealed class InstanceGate : IDisposable
                 return false;
             }
 
-            ForegroundActivation.AllowFor(BitConverter.ToInt32(header));
+            var holderPid = BitConverter.ToInt32(header);
+            var granted = ForegroundActivation.AllowFor(holderPid);
+            if (!granted)
+            {
+                // Logged rather than swallowed: the hand-off will still deliver and the document
+                // will still open, but the window will flash its taskbar button instead of coming
+                // forward, and this line is the only way to tell that apart from a broken raise.
+                log?.LogDebug("Foreground grant to process {Pid} was refused; this process may not hold "
+                    + "the foreground right (normal when launched by a script rather than the shell)", holderPid);
+            }
 
             var bytes = Encoding.UTF8.GetBytes(payload);
             if (bytes.Length > MaxPayloadBytes)
