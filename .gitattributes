@@ -1,0 +1,9 @@
+# Normalise line endings in the repo to LF; check out native on each platform.
+* text=auto
+*.cs text
+*.csproj text
+*.props text
+*.targets text
+*.slnx text
+*.yml text
+*.md text

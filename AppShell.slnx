@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SharpAstro.AppShell/SharpAstro.AppShell.csproj" />
+    <Project Path="src/SharpAstro.AppShell.Tests/SharpAstro.AppShell.Tests.csproj" />
+  </Folder>
+</Solution>

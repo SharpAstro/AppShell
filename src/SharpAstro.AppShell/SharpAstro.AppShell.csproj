@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SharpAstro.AppShell</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Required by LibraryImport: its source-generated marshalling emits unsafe code. That is
+         the point of using it over DllImport, which needs a runtime marshaller and is not
+         AOT-clean. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsTrimmable>true</IsTrimmable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!-- AssemblyVersion is major.minor.0.0, DERIVED from the one place the number is written
+         (VersionMajorMinor in the repo-root Directory.Build.props), which also supplies
+         VersionPrefix. Bump it THERE; do not restate it here. -->
+    <AssemblyVersion>$(VersionMajorMinor).0.0</AssemblyVersion>
+    <PackageId>SharpAstro.AppShell</PackageId>
+    <Description>Desktop app-shell plumbing for single-window native applications: a named-pipe single-instance gate that hands a later launch's file to the already-running process, scoped by whatever identity the app chooses (whole-app, or one instance per open folder), plus the Windows foreground-activation handshake that lets the running window actually come to the front.</Description>
+    <PackageTags>single-instance;named-pipe;desktop;file-association;activation;shell;aot</PackageTags>
+    <Authors>Sebastian Godelet</Authors>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/SharpAstro/AppShell.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharpAstro.AppShell.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
