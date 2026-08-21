@@ -4,6 +4,15 @@ Release notes live here rather than beside the version number: the number is one
 `Directory.Build.props` and nothing reads prose from there. Newest first, one section per
 `MAJOR.MINOR`.
 
+## 1.1
+
+- `IActivatableWindow` + `WindowActivation.Activate()`: the window half of a hand-off, which until
+  now every consumer had to write for itself. Both of the obvious spellings are wrong, in opposite
+  directions: raising alone leaves a minimised window off-screen while holding input focus, and
+  restoring before raising un-maximises a maximised one. So restore only when the window is actually
+  minimised. A three-member interface rather than a dependency on a windowing toolkit, so this
+  library stays usable from any of them.
+
 ## 1.0
 
 First release.
