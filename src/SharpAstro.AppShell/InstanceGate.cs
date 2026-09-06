@@ -185,6 +185,14 @@ public sealed class InstanceGate : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
         ArgumentNullException.ThrowIfNull(payload);
 
+        // Nobody there is answered NOW, not at the timeout. See IsKnownAbsent: the wait exists for a
+        // holder that is busy, and spending it on a holder that does not exist is the common case.
+        if (IsKnownAbsent(channel))
+        {
+            log?.LogDebug("No instance holds {Channel}", channel);
+            return false;
+        }
+
         try
         {
             using var client = new NamedPipeClientStream(".", channel, PipeDirection.InOut);
@@ -237,6 +245,50 @@ public sealed class InstanceGate : IDisposable
             log?.LogDebug(ex, "Hand-off to {Channel} failed", channel);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Whether it is CERTAIN that nothing holds <paramref name="channel"/> -- false means "held, or
+    /// cannot tell", so a caller still has to try.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why an existence check exists at all.</b>
+    /// <see cref="NamedPipeClientStream.Connect(int)"/> does not distinguish "no holder" from "the
+    /// holder is busy". It POLLS for the name to appear and gives up only at the timeout, which is
+    /// right for a busy holder and completely wrong for an absent one -- and absent is the COMMON
+    /// case, since every launch made while no other window is open takes it. The FITS viewer paid
+    /// the full five seconds on every double-click of a file, before its window was even created,
+    /// because it offers each document to an "empty window" channel that usually holds nobody.</para>
+    ///
+    /// <para><b>Windows publishes the pipe namespace as a filesystem</b>, so the distinction is one
+    /// stat call. A name that could not BE a file name is left unprobed and reported as "cannot
+    /// tell": a false negative here would skip a hand-off that would have worked, which is the one
+    /// outcome worse than waiting. <see cref="ChannelFor"/> only ever produces safe names.</para>
+    ///
+    /// <para>Off Windows there is no equally reliable probe -- the .NET pipe path is an
+    /// implementation detail -- so the answer is "cannot tell" and the timed connect runs exactly as
+    /// it did before.</para>
+    ///
+    /// <para>Racy by nature, and harmlessly so: a holder appearing right after the probe means the
+    /// caller opens its own window, which is this class's documented fallback for every failed
+    /// hand-off.</para>
+    /// </remarks>
+    private static bool IsKnownAbsent(string channel)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        foreach (var c in channel)
+        {
+            if (!char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))
+            {
+                return false;
+            }
+        }
+
+        return !File.Exists($@"\\.\pipe\{channel}");
     }
 
     /// <summary>

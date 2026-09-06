@@ -141,6 +141,36 @@ public class InstanceGateTests
         InstanceGate.TryHandOff(channel, "whatever", TimeSpan.FromMilliseconds(250)).ShouldBeFalse();
     }
 
+    /// <summary>
+    /// And it returns false AT ONCE, not at the timeout. The timeout is there for a holder that is
+    /// busy; spending it on a holder that does not exist is the common case, because every launch
+    /// made while no other window is open takes this path. The FITS viewer spent five seconds there
+    /// on every double-click of a file, before its window was even created.
+    /// </summary>
+    /// <remarks>
+    /// The bound is deliberately far below the timeout rather than near zero: this asserts that the
+    /// wait was SKIPPED, and a CI runner is entitled to be slow at everything else.
+    /// </remarks>
+    [Fact]
+    public void A_handoff_to_nobody_gives_up_at_once_rather_than_at_the_timeout()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            // Only Windows can answer "is this pipe there?" reliably; elsewhere the timed connect
+            // still runs, so there is no promise to assert.
+            return;
+        }
+
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("nobody-fast"));
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        InstanceGate.TryHandOff(channel, "whatever", TimeSpan.FromSeconds(5)).ShouldBeFalse();
+        sw.Stop();
+
+        sw.ElapsedMilliseconds.ShouldBeLessThan(1000,
+            $"a hand-off to a channel nobody holds waited {sw.ElapsedMilliseconds}ms of its 5s timeout");
+    }
+
     [Fact]
     public void Disposing_twice_is_harmless()
     {

@@ -6,6 +6,16 @@ Release notes live here rather than beside the version number: the number is one
 
 ## 1.1
 
+- **`InstanceGate.TryHandOff` answers "nobody is there" at once instead of at the timeout.**
+  `NamedPipeClientStream.Connect` does not distinguish an absent holder from a busy one: it polls
+  for the name to appear and gives up only when the timeout expires. Waiting is right for a busy
+  holder and completely wrong for an absent one -- which is the COMMON case, since every launch made
+  while no other window is open takes that path. Measured in the FITS viewer, which offers each
+  document to an "empty window" channel that usually holds nobody: **five seconds on every
+  double-click of a file**, spent before the window was created, against 0.1 s for a bare launch.
+  Windows publishes the pipe namespace as a filesystem, so the distinction is one stat call; a name
+  that could not be a file name is left unprobed, and off Windows the timed connect is unchanged.
+  No API change -- a consumer on `1.1.*` gets it on the next restore.
 - `IActivatableWindow` + `WindowActivation.Activate()`: the window half of a hand-off, which until
   now every consumer had to write for itself. Both of the obvious spellings are wrong, in opposite
   directions: raising alone leaves a minimised window off-screen while holding input focus, and
