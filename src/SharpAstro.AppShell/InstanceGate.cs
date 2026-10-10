@@ -31,10 +31,21 @@ public readonly record struct HandoffRequest(string Payload);
 /// open folder", where opening a file in a new folder gets a new window but opening one in a folder
 /// already on screen activates that window. Neither policy is baked in here.</para>
 ///
-/// <para><b>The pipe is the lock.</b> A named pipe with a single server instance can only be
+/// <para><b>On Windows the pipe is the lock.</b> A named pipe with a single server instance can only be
 /// created once, so <see cref="TryClaim"/> succeeding IS the claim, and the same object then
 /// carries the hand-off traffic. One primitive means one lifetime to get right and no
 /// abandoned-mutex case to reason about.</para>
+///
+/// <para><b>On Linux and macOS it cannot be, so a lock file is.</b> .NET's pipe there is a Unix-domain
+/// socket, and its server unlinks whatever socket is at the path and binds its own, enforcing the
+/// single instance only within one process (<c>NamedPipeServerStream.Unix.cs</c>, <c>SharedServer</c>).
+/// So a second process took the name instead of being refused: every launch claimed the gate, a
+/// hand-off reached the NEWEST window, and the older gate's dispose then unlinked the newer one's
+/// socket. The claim is an exclusive advisory lock (<c>flock</c>, which .NET takes for
+/// <see cref="FileShare.None"/>) on a file beside the socket, held for the gate's life; the kernel
+/// releases it when its process dies, however it dies, so a crash leaves no stale claim behind, which
+/// <see cref="PipeOptions.FirstPipeInstance"/> alone would (its bind fails on a dead holder's socket
+/// file for good).</para>
 ///
 /// <para><b>The accept loop gets its own thread, and the pipe is deliberately NOT
 /// <see cref="PipeOptions.Asynchronous"/>.</b> An awaited accept resumes on a thread-pool worker,
@@ -65,6 +76,9 @@ public sealed class InstanceGate : IDisposable
 
     // Not readonly: a wedged instance is replaced, see AcceptLoop. Written only by the accept thread.
     private volatile NamedPipeServerStream _server;
+
+    // The claim off Windows, held until after the server is disposed (see the class remarks); null on Windows.
+    private readonly FileStream? _claim;
     private readonly ConcurrentQueue<HandoffRequest> _incoming = new();
     private readonly ILogger? _log;
     private Thread? _thread;
@@ -74,9 +88,10 @@ public sealed class InstanceGate : IDisposable
     // connection (see Dispose), and this is what tells it that connection was ours.
     private volatile bool _stopping;
 
-    private InstanceGate(NamedPipeServerStream server, string channel, ILogger? log)
+    private InstanceGate(NamedPipeServerStream server, FileStream? claim, string channel, ILogger? log)
     {
         _server = server;
+        _claim = claim;
         Channel = channel;
         _log = log;
     }
@@ -140,11 +155,19 @@ public sealed class InstanceGate : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(channel);
 
+        FileStream? claim = null;
         NamedPipeServerStream server;
         try
         {
-            // maxNumberOfServerInstances 1 is what makes creation exclusive, and therefore what
-            // makes this the primacy test rather than merely a transport.
+            if (!OperatingSystem.IsWindows())
+            {
+                // The claim itself (see the class remarks); an IOException is another process holding it
+                claim = new FileStream(ClaimPath(channel), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+
+            // maxNumberOfServerInstances 1 is what makes creation exclusive on Windows, and therefore
+            // what makes this the primacy test there rather than merely a transport. Elsewhere the
+            // claim above is, and this server only replaces whatever socket a dead holder left.
             server = new NamedPipeServerStream(
                 channel,
                 PipeDirection.InOut,
@@ -155,17 +178,19 @@ public sealed class InstanceGate : IDisposable
         catch (IOException)
         {
             // The name is taken: somebody else is the instance for this identity.
+            claim?.Dispose();
             return null;
         }
         catch (Exception ex)
         {
             // Anything else (an unsupported platform, a permissions problem) means we cannot gate.
             // Running without one is correct: the app opens its own window.
+            claim?.Dispose();
             log?.LogDebug(ex, "Could not claim instance channel {Channel}; continuing ungated", channel);
             return null;
         }
 
-        var gate = new InstanceGate(server, channel, log);
+        var gate = new InstanceGate(server, claim, channel, log);
         gate._thread = new Thread(gate.AcceptLoop)
         {
             IsBackground = true,
@@ -174,6 +199,10 @@ public sealed class InstanceGate : IDisposable
         gate._thread.Start();
         return gate;
     }
+
+    // Beside .NET's own socket for the channel, in the per-user temporary folder on macOS; on Linux the
+    // channel's hash of the user's name keeps two users' claims apart in a shared /tmp
+    private static string ClaimPath(string channel) => Path.Combine(Path.GetTempPath(), $"{channel}.claim");
 
     /// <summary>
     /// Hand <paramref name="payload"/> to the instance holding <paramref name="channel"/>, and
@@ -400,7 +429,8 @@ public sealed class InstanceGate : IDisposable
 
     /// <summary>
     /// Rebuilds the server instance after it has stopped accepting. Returns false when the name
-    /// cannot be retaken, which means somebody else now holds it and this gate is finished.
+    /// cannot be retaken, which means somebody else now holds it and this gate is finished. Off
+    /// Windows the claim is held throughout, so nobody can take the name in between.
     /// </summary>
     private bool TryReplaceWedgedServer()
     {
@@ -478,6 +508,10 @@ public sealed class InstanceGate : IDisposable
 
         _thread?.Join(TimeSpan.FromSeconds(2));
         _server.Dispose();
+
+        // Only now: disposing the server unlinks the socket path, which must not happen to a socket a
+        // newer holder has already bound there
+        _claim?.Dispose();
     }
 
     private static string Sanitize(string value)

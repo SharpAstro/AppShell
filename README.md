@@ -58,9 +58,11 @@ and `c:\data\` do not open two windows onto the same folder.
 
 ## Three things it gets right that are easy to get wrong
 
-**The pipe is the lock.** A named pipe with a single server instance can only be created once, so
-claiming it *is* the primacy test — there is no separate mutex, one lifetime to get right, and no
-abandoned-mutex case.
+**On Windows the pipe is the lock.** A named pipe with a single server instance can only be created
+once, so claiming it *is* the primacy test — there is no separate mutex, one lifetime to get right,
+and no abandoned-mutex case. On Linux and macOS .NET's pipe is a Unix-domain socket whose server
+replaces whatever socket is at its path, so there the claim is an advisory lock (`flock`) on a file
+beside it, which the kernel releases when its process dies, a crash included.
 
 **The accept loop is not on the thread pool.** The pipe is deliberately not `Asynchronous`, and the
 accept runs on a dedicated thread. An awaited accept resumes on a pool worker, and an app of this

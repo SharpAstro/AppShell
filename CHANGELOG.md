@@ -6,6 +6,15 @@ Release notes live here rather than beside the version number: the number is one
 
 ## 1.1
 
+- **`InstanceGate` is exclusive on Linux and macOS too.** It never was: .NET's named-pipe server
+  there is a Unix-domain socket that unlinks whatever socket is at its path and binds its own,
+  enforcing the single instance only within one process. So a second launch claimed the gate
+  instead of being refused, a hand-off reached the newest window rather than the first, and the
+  older gate's dispose then unlinked the newer one's socket. Off Windows the claim is now an
+  advisory lock (`flock`) on a `<channel>.claim` file in the temporary folder, held for the gate's
+  life and released by the kernel when the process dies, so a crashed holder leaves no stale claim.
+  Pinned by two tests that hold the gate from a second process, which fail on Linux without the
+  lock. No API change.
 - **`InstanceGate.TryHandOff` answers "nobody is there" at once instead of at the timeout.**
   `NamedPipeClientStream.Connect` does not distinguish an absent holder from a busy one: it polls
   for the name to appear and gives up only when the timeout expires. Waiting is right for a busy

@@ -56,6 +56,39 @@ public class InstanceGateTests
         InstanceGate.TryClaim(channel).ShouldBeNull();
     }
 
+    [Fact(Timeout = 60_000)]
+    public async Task A_claim_another_process_holds_refuses_this_one()
+    {
+        // The test above holds both claims in one process, where .NET refuses the second server by
+        // itself. Between processes on Linux and macOS, .NET's pipe server unlinked the holder's
+        // socket and bound its own, so EVERY launch claimed the gate and a hand-off reached the
+        // newest window rather than the first.
+        var ct = TestContext.Current.CancellationToken;
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("cross-process"));
+
+        using var holder = await GateHolderProcess.StartAsync(channel, ct);
+        holder.Answer.ShouldBe("claimed");
+
+        InstanceGate.TryClaim(channel).ShouldBeNull();
+        InstanceGate.TryHandOff(channel, "to the holder", TimeSpan.FromSeconds(5)).ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task A_holder_that_died_leaves_the_claim_free()
+    {
+        // A crash runs no dispose, so whatever marks the claim must die with the process, or a
+        // crashed window would refuse every later launch the gate.
+        var ct = TestContext.Current.CancellationToken;
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("crashed"));
+
+        using var holder = await GateHolderProcess.StartAsync(channel, ct);
+        holder.Answer.ShouldBe("claimed");
+        await holder.KillAsync(ct);
+
+        using var next = InstanceGate.TryClaim(channel);
+        next.ShouldNotBeNull();
+    }
+
     [Fact]
     public void Releasing_a_claim_lets_the_next_process_take_it()
     {
