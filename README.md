@@ -77,6 +77,22 @@ before sending the payload, via `AllowSetForegroundWindow`. Skip this and the ru
 its taskbar button and stays behind, which reads as the hand-off silently failing. It is a no-op off
 Windows, where focus policy belongs to the compositor.
 
+## A name the shell can show
+
+An app shipped as a zip has no identity of its own: Windows knows its windows by the executable's file name,
+and its media flyout calls the app's media session "Unknown app". One call at startup, before the first window,
+fixes that:
+
+```csharp
+AppIdentity.Claim("MyCompany.Viewer", "Viewer");
+```
+
+It gives the process the app id (an AppUserModelID) and makes sure a Start menu shortcut named "Viewer"
+carries it, which is where the shell finds the name and the icon, and which also puts the app in Start menu
+search. The shortcut is written once and afterwards only read: it follows the app when the executable it points
+at is gone, stays with the copy it points at while that is there, and a shortcut of the same name that does not
+carry the id is never rewritten. No-op off Windows.
+
 ## Failure is never fatal
 
 Every path out of a failed hand-off returns `false` rather than throwing, and `TryClaim` returns

@@ -16,7 +16,7 @@
          VersionPrefix. Bump it THERE; do not restate it here. -->
     <AssemblyVersion>$(VersionMajorMinor).0.0</AssemblyVersion>
     <PackageId>SharpAstro.AppShell</PackageId>
-    <Description>Desktop app-shell plumbing for single-window native applications: a named-pipe single-instance gate that hands a later launch's file to the already-running process, scoped by whatever identity the app chooses (whole-app, or one instance per open folder), plus the Windows foreground-activation handshake that lets the running window actually come to the front.</Description>
+    <Description>Desktop app-shell plumbing for single-window native applications: a named-pipe single-instance gate that hands a later launch's file to the already-running process, scoped by whatever identity the app chooses (whole-app, or one instance per open folder), plus the Windows foreground-activation handshake that lets the running window actually come to the front, and the app id and Start menu shortcut that let the Windows shell name an unpackaged app.</Description>
     <PackageTags>single-instance;named-pipe;desktop;file-association;activation;shell;aot</PackageTags>
     <Authors>Sebastian Godelet</Authors>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>

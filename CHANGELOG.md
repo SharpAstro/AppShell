@@ -4,6 +4,20 @@ Release notes live here rather than beside the version number: the number is one
 `Directory.Build.props` and nothing reads prose from there. Newest first, one section per
 `MAJOR.MINOR`.
 
+## 1.2
+
+- **`AppIdentity.Claim(appId, displayName)`: an unpackaged Windows app that the shell can name.** A process
+  without an app id (AppUserModelID) is known by its executable's file name, which the shell cannot turn into an
+  app, so Windows' media flyout calls its media session "Unknown app". `Claim` gives the process the app id and
+  makes sure a Start menu shortcut of that name carries it, which is where the shell finds the name and the
+  icon (Chrome is "Google Chrome" there the same way). The shortcut is written when missing and afterwards only
+  read: a shortcut whose target is gone (the app was moved) is repointed at the running executable, one whose
+  target is still there is kept even when another copy runs (a development build does not take over the
+  installed app's), and a shortcut of the same name without the id is someone else's and left alone. The
+  outcome comes back as `StartMenuShortcut`; nothing throws for a shell that refuses. The shell's link object is
+  called by hand (three interfaces, a few vtable slots), so the library takes no COM wrapper dependency. No-op
+  off Windows.
+
 ## 1.1
 
 - **`InstanceGate` is exclusive on Linux and macOS too.** It never was: .NET's named-pipe server
