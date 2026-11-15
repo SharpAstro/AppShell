@@ -4,6 +4,19 @@ Release notes live here rather than beside the version number: the number is one
 `Directory.Build.props` and nothing reads prose from there. Newest first, one section per
 `MAJOR.MINOR`.
 
+## 1.3
+
+- **`CrashTrace`: an uncaught exception leaves a trace in the app's own log.** `CrashTrace.Install(sink)` (an
+  `Action<string>`, or an `ILogger` at Critical) hooks `AppDomain.UnhandledException` and
+  `TaskScheduler.UnobservedTaskException` once, however many sinks are installed, and hands every sink the whole
+  exception, stamped with the time and the kind of failure. Install it first thing in `Main`: an exception before an
+  app's own logging is up, on a background thread, or out of a native callback otherwise ends the process with
+  nothing in any log. `CrashTrace.Write(what, exception)` is public so a host can forward a platform's own event:
+  on iOS a managed exception reaching a native frame raises `ObjCRuntime.Runtime.MarshalManagedException`, which
+  this `net10.0` library cannot see (chess's first iPad crash went that way). Never throws: a failing sink is
+  skipped and stderr is the last resort. Asked for by tianwen#2143 (pilot-gui, TianWen's GUI and FITS viewer, and
+  chess each kept a copy, or none).
+
 ## 1.2
 
 - **`AppIdentity.Claim(appId, displayName)`: an unpackaged Windows app that the shell can name.** A process
