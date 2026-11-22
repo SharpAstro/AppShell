@@ -93,6 +93,29 @@ search. The shortcut is written once and afterwards only read: it follows the ap
 at is gone, stays with the copy it points at while that is there, and a shortcut of the same name that does not
 carry the id is never rewritten. No-op off Windows.
 
+## Desktop appearance
+
+Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
+the desktop publishes, once, in a static initialiser (never on the render thread), so a change made in Windows
+settings shows at the next launch.
+
+- `DesktopAccent.Ramp` is the accent ramp (HKCU `Explorer\Accent\AccentPalette`: Light3, Light2, Light1, Base,
+  Dark1, Dark2, Dark3, Extra). `DesktopAccent.For(darkChrome)` picks one of its own steps, never a lightened or
+  darkened copy: **Light2 on dark chrome** and **Dark1 on light chrome**, the steps that keep their contrast
+  against each background where the Base accent often does not.
+- `DesktopAppearance.Mode` is the app mode (HKCU `Themes\Personalize\AppsUseLightTheme`): `AppMode.Light`,
+  `Dark` or `Unknown`; `IsDark` is true only for `Dark`. Follow it by default and add your own override on top.
+- Off Windows, or when the value is missing or unreadable, the accent is `null` and the mode `Unknown`, with a
+  `Reason` for each and nothing thrown. `LogOnce(...)` says why, once.
+
+```csharp
+DesktopAccent.LogOnce(logger);
+DesktopAppearance.LogOnce(logger);
+
+var dark = userOverride ?? DesktopAppearance.IsDark;
+var accent = DesktopAccent.For(darkChrome: dark) ?? myOwnDefaultAccent;
+```
+
 ## Failure is never fatal
 
 Every path out of a failed hand-off returns `false` rather than throwing, and `TryClaim` returns
