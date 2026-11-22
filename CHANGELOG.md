@@ -9,10 +9,11 @@ Release notes live here rather than beside the version number: the number is one
 - **`DesktopAccent` and `DesktopAppearance`: the desktop's accent ramp and light/dark mode, read once, opt-in.**
   `DesktopAccent.Ramp` is the eight-step accent ramp Windows publishes and `DesktopAccent.For(darkChrome)` picks
   Light2 on dark chrome and Dark1 on light chrome; `DesktopAppearance.Mode` / `IsDark` is the desktop's app mode
-  (`AppsUseLightTheme`). Both are read once in a static initialiser, never on the render thread, so a change shows
+  (`AppsUseLightTheme`). Both are read once in a static initialiser, on first use and on whatever thread touches
+  them first (touch them at startup, e.g. with `LogOnce`, to keep that off the render thread), so a change shows
   at the next launch; both give `null` / `Unknown` with a `Reason` off Windows or when the value is missing or
   unreadable, and never throw. Nothing applies them: an app follows the desktop by default and may override.
-  Replaces pilot's `SystemAccent` / `DesktopAccent` copy. See
+  Ports pilot's `SystemAccent` / `DesktopAccent`; pilot itself is not changed here. See
   [AppShell#5](https://github.com/SharpAstro/AppShell/issues/5) and
   [SharpAstro/.github#14](https://github.com/SharpAstro/.github/issues/14).
 

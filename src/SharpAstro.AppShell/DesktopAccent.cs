@@ -124,8 +124,9 @@ internal static class AccentResolver
 
 /// <summary>
 /// The desktop's accent, opt-in: an app chooses its own accent and nothing here applies this by default. The ramp is
-/// read once, in the static initialiser (never on the render thread), so a change made in Windows settings during
-/// the session shows at the next launch. <see cref="Ramp"/> is null where none is published and
+/// read once, in the static initialiser, on first use and on whatever thread touches it first (touch it at startup,
+/// e.g. with <see cref="LogOnce(Action{string})"/>, so that is not the render thread), so a change made in Windows
+/// settings during the session shows at the next launch. <see cref="Ramp"/> is null where none is published and
 /// <see cref="Reason"/> says why. A colour is picked from the ramp, never lightened or darkened here.
 /// </summary>
 public static class DesktopAccent
@@ -134,7 +135,7 @@ public static class DesktopAccent
 
     private static int _logged;
 
-    /// <summary>The desktop's accent ramp, read once at startup; null when none is published.</summary>
+    /// <summary>The desktop's accent ramp, read once on first use; null when none is published.</summary>
     public static AccentRamp? Ramp => Resolved.Ramp;
 
     /// <summary>Why there is no <see cref="Ramp"/>; null when there is one.</summary>
@@ -144,18 +145,22 @@ public static class DesktopAccent
     /// <param name="darkChrome">True when the window chrome is dark.</param>
     public static AccentColor? For(bool darkChrome) => Resolved.Ramp?.Pick(darkChrome);
 
-    /// <summary>Says once, at startup, why there is no desktop accent; nothing when there is one.</summary>
+    /// <summary>Says once, why there is no desktop accent; nothing when there is one.</summary>
     /// <param name="log">Where the line goes (an app's own log).</param>
     public static void LogOnce(Action<string> log)
     {
+        ArgumentNullException.ThrowIfNull(log);
         if (Resolved.Ramp is null && Interlocked.Exchange(ref _logged, 1) == 0)
         {
             log($"no desktop accent colour: {Resolved.Reason}");
         }
     }
 
-    /// <summary>Says once, at startup, why there is no desktop accent; nothing when there is one.</summary>
+    /// <summary>Says once, why there is no desktop accent; nothing when there is one.</summary>
     /// <param name="logger">The logger the line goes to, at information level.</param>
-    public static void LogOnce(ILogger logger) =>
+    public static void LogOnce(ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
         LogOnce(message => logger.LogInformation("{Message}", message));
+    }
 }
