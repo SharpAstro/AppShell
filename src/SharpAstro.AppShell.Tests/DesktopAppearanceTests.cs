@@ -62,6 +62,6 @@ public class DesktopAppearanceTests
     {
         var (mode, reason) = AppModeResolver.Resolve(new FakeSource(null, throws: new InvalidOperationException("boom")));
         mode.ShouldBe(AppMode.Unknown);
-        reason.ShouldContain("boom");
+        reason.ShouldNotBeNull().ShouldContain("boom");
     }
 }
