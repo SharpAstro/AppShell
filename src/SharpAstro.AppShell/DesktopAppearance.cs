@@ -84,8 +84,9 @@ internal static class AppModeResolver
 
 /// <summary>
 /// The desktop's light/dark app mode, opt-in: nothing here applies it. An app follows the desktop by default and may
-/// add its own override on top. Read once, in the static initialiser (never on the render thread), so a change made
-/// in Windows settings during the session shows at the next launch. <see cref="Mode"/> is
+/// add its own override on top. Read once, in the static initialiser, on first use and on whatever thread touches it first (touch it at startup,
+/// e.g. with <see cref="LogOnce(Action{string})"/>, so that is not the render thread), so a change made in Windows
+/// settings during the session shows at the next launch. <see cref="Mode"/> is
 /// <see cref="AppMode.Unknown"/> where none is published and <see cref="Reason"/> says why. Pair with
 /// <c>DesktopAccent.For(darkChrome: DesktopAppearance.IsDark)</c> to pick the matching accent step.
 /// </summary>
@@ -95,7 +96,7 @@ public static class DesktopAppearance
 
     private static int _logged;
 
-    /// <summary>The desktop's app mode, read once at startup.</summary>
+    /// <summary>The desktop's app mode, read once on first use.</summary>
     public static AppMode Mode => Resolved.Mode;
 
     /// <summary>Why the mode is <see cref="AppMode.Unknown"/>; null when it is known.</summary>
@@ -104,18 +105,22 @@ public static class DesktopAppearance
     /// <summary>True only when the desktop asks for dark; an unknown mode is not dark (see <see cref="Reason"/>).</summary>
     public static bool IsDark => Resolved.Mode == AppMode.Dark;
 
-    /// <summary>Says once, at startup, why the app mode is unknown; nothing when it is known.</summary>
+    /// <summary>Says once, why the app mode is unknown; nothing when it is known.</summary>
     /// <param name="log">Where the line goes (an app's own log).</param>
     public static void LogOnce(Action<string> log)
     {
+        ArgumentNullException.ThrowIfNull(log);
         if (Resolved.Mode == AppMode.Unknown && Interlocked.Exchange(ref _logged, 1) == 0)
         {
             log($"no desktop light/dark mode: {Resolved.Reason}");
         }
     }
 
-    /// <summary>Says once, at startup, why the app mode is unknown; nothing when it is known.</summary>
+    /// <summary>Says once, why the app mode is unknown; nothing when it is known.</summary>
     /// <param name="logger">The logger the line goes to, at information level.</param>
-    public static void LogOnce(ILogger logger) =>
+    public static void LogOnce(ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
         LogOnce(message => logger.LogInformation("{Message}", message));
+    }
 }

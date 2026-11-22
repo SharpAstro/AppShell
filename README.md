@@ -96,7 +96,8 @@ carry the id is never rewritten. No-op off Windows.
 ## Desktop appearance
 
 Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
-the desktop publishes, once, in a static initialiser (never on the render thread), so a change made in Windows
+the desktop publishes, once, in a static initialiser on first use (on whatever thread touches it first, so touch it at startup rather
+than on the render thread), so a change made in Windows
 settings shows at the next launch.
 
 - `DesktopAccent.Ramp` is the accent ramp (HKCU `Explorer\Accent\AccentPalette`: Light3, Light2, Light1, Base,

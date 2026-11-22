@@ -28,9 +28,19 @@ public class DesktopAccentTests
         var ramp = AccentRamp.Parse(Palette()).ShouldNotBeNull();
         ramp.Light3.ShouldBe(new AccentColor(1, 2, 3));
         ramp.Light2.ShouldBe(new AccentColor(11, 12, 13));
+        ramp.Light1.ShouldBe(new AccentColor(21, 22, 23));
         ramp.Base.ShouldBe(new AccentColor(31, 32, 33));
         ramp.Dark1.ShouldBe(new AccentColor(41, 42, 43));
+        ramp.Dark2.ShouldBe(new AccentColor(51, 52, 53));
+        ramp.Dark3.ShouldBe(new AccentColor(61, 62, 63));
         ramp.Extra.ShouldBe(new AccentColor(71, 72, 73));
+    }
+
+    [Fact]
+    public void LogOnce_with_a_null_logger_throws_at_once()
+    {
+        Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
+        Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Action<string>)null!));
     }
 
     [Fact]
