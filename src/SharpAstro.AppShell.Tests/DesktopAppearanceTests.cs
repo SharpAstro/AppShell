@@ -3,7 +3,10 @@ using Xunit;
 
 namespace SharpAstro.AppShell.Tests;
 
-/// <summary>The AppsUseLightTheme mapping and its failure reasons, all against a fake source: no registry read.</summary>
+/// <summary>
+/// The AppsUseLightTheme mapping and its failure reasons run against a fake source: no registry read. The two LogOnce guard
+/// tests touch the public static (a harmless in-process read-only HKCU read); the shared LogSink tests are in DesktopAccentTests.
+/// </summary>
 public class DesktopAppearanceTests
 {
     private sealed class FakeSource(object? value, string? reason = null, Exception? throws = null) : IAppModeSource
@@ -64,4 +67,12 @@ public class DesktopAppearanceTests
         mode.ShouldBe(AppMode.Unknown);
         reason.ShouldNotBeNull().ShouldContain("boom");
     }
+
+    [Fact]
+    public void DesktopAppearance_LogOnce_with_a_null_sink_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Action<string>)null!));
+
+    [Fact]
+    public void DesktopAppearance_LogOnce_with_a_null_logger_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
 }

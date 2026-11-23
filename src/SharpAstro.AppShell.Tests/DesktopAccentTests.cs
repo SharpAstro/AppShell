@@ -3,7 +3,10 @@ using Xunit;
 
 namespace SharpAstro.AppShell.Tests;
 
-/// <summary>Parsing, the Light2/Dark1 pick and the failure reasons, all against a fake source: no registry read.</summary>
+/// <summary>
+/// Parsing, the Light2/Dark1 pick and the failure tests run against a fake source: no registry read. The DesktopAccent
+/// LogOnce guard tests and the shared LogSink tests touch the public statics, a harmless in-process read-only HKCU read.
+/// </summary>
 public class DesktopAccentTests
 {
     private sealed class FakeSource(byte[]? bytes, string? reason = null, Exception? throws = null) : IAccentSource
@@ -36,9 +39,10 @@ public class DesktopAccentTests
         ramp.Extra.ShouldBe(new AccentColor(71, 72, 73));
     }
 
-    // The null checks behind the LogOnce overloads of DesktopAccent and DesktopAppearance live in LogSink; the LogSink tests
-    // pin the helper, and the four DesktopAccent/DesktopAppearance tests pin that each public LogOnce goes through it. Those
-    // touch the public statics, whose initialisers do one in-process registry read, and throw before anything is logged.
+    // The null checks behind the LogOnce overloads of DesktopAccent and DesktopAppearance live in LogSink. The LogSink tests
+    // below pin the helper (they are shared by both); the DesktopAppearance_LogOnce_* tests live in DesktopAppearanceTests.
+    // The DesktopAccent_LogOnce_* tests touch the public statics, whose initialisers do one in-process registry read, and
+    // throw before anything is logged.
     [Fact]
     public void DesktopAccent_LogOnce_with_a_null_sink_throws_at_once()
         => Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Action<string>)null!));
@@ -46,14 +50,6 @@ public class DesktopAccentTests
     [Fact]
     public void DesktopAccent_LogOnce_with_a_null_logger_throws_at_once()
         => Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
-
-    [Fact]
-    public void DesktopAppearance_LogOnce_with_a_null_sink_throws_at_once()
-        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Action<string>)null!));
-
-    [Fact]
-    public void DesktopAppearance_LogOnce_with_a_null_logger_throws_at_once()
-        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
 
     [Fact]
     public void LogSink_from_a_null_logger_throws_at_once()
