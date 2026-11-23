@@ -36,8 +36,25 @@ public class DesktopAccentTests
         ramp.Extra.ShouldBe(new AccentColor(71, 72, 73));
     }
 
-    // The null checks behind the LogOnce overloads of DesktopAccent and DesktopAppearance live in LogSink, so these tests
-    // do not touch either public static (whose initialiser reads the real registry).
+    // The null checks behind the LogOnce overloads of DesktopAccent and DesktopAppearance live in LogSink; the LogSink tests
+    // pin the helper, and the four DesktopAccent/DesktopAppearance tests pin that each public LogOnce goes through it. Those
+    // touch the public statics, whose initialisers do one in-process registry read, and throw before anything is logged.
+    [Fact]
+    public void DesktopAccent_LogOnce_with_a_null_sink_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Action<string>)null!));
+
+    [Fact]
+    public void DesktopAccent_LogOnce_with_a_null_logger_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAccent.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
+
+    [Fact]
+    public void DesktopAppearance_LogOnce_with_a_null_sink_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Action<string>)null!));
+
+    [Fact]
+    public void DesktopAppearance_LogOnce_with_a_null_logger_throws_at_once()
+        => Should.Throw<ArgumentNullException>(() => DesktopAppearance.LogOnce((Microsoft.Extensions.Logging.ILogger)null!));
+
     [Fact]
     public void LogSink_from_a_null_logger_throws_at_once()
         => Should.Throw<ArgumentNullException>(() => LogSink.From((Microsoft.Extensions.Logging.ILogger)null!));
