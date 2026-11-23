@@ -109,7 +109,7 @@ public static class DesktopAppearance
     /// <param name="log">Where the line goes (an app's own log).</param>
     public static void LogOnce(Action<string> log)
     {
-        ArgumentNullException.ThrowIfNull(log);
+        LogSink.Require(log);
         if (Resolved.Mode == AppMode.Unknown && Interlocked.Exchange(ref _logged, 1) == 0)
         {
             log($"no desktop light/dark mode: {Resolved.Reason}");
@@ -120,7 +120,6 @@ public static class DesktopAppearance
     /// <param name="logger">The logger the line goes to, at information level.</param>
     public static void LogOnce(ILogger logger)
     {
-        ArgumentNullException.ThrowIfNull(logger);
-        LogOnce(message => logger.LogInformation("{Message}", message));
+        LogOnce(LogSink.From(logger));
     }
 }
