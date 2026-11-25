@@ -43,8 +43,9 @@ public enum StartMenuShortcut
 ///
 /// <para><b>Inside a package it does nothing.</b> The same executable often ships both ways, as a zip and in a
 /// Store package. In the package, setting an app id of our own would take the windows away from the package's
-/// entry (the taskbar would group them under a second identity, apart from the pinned tile), and a shortcut
-/// written from inside a package lands in the package's private copy of AppData, where the shell never looks.
+/// entry (the taskbar would group them under a second identity, apart from the pinned tile), and in a full MSIX
+/// package a shortcut lands in the package's private copy of AppData, where the shell never looks (a sparse
+/// package is not redirected, but its manifest names the app all the same).
 /// So <see cref="Claim(string, string)"/> asks <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
 ///
 /// <para>The shortcut also puts the app in Start menu search. It is written once, beside the user's other
