@@ -45,6 +45,23 @@ public class AppIdentityTests
     }
 
     [Fact]
+    public void A_test_host_has_no_package_identity()
+    {
+        // The test host is an unpackaged executable on every OS, so this is the answer Claim must see before it
+        // sets an app id; off Windows it is false without asking.
+        IsPackaged.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Packaged_is_appended_so_the_earlier_values_keep_their_numbers()
+    {
+        // A caller built against 1.4 compares against these values; adding one must not move them.
+        ((int)StartMenuShortcut.None).ShouldBe(0);
+        ((int)StartMenuShortcut.Failed).ShouldBe(5);
+        ((int)StartMenuShortcut.Packaged).ShouldBe(6);
+    }
+
+    [Fact]
     public void A_written_shortcut_carries_the_app_id_and_the_target()
     {
         if (!OperatingSystem.IsWindows())

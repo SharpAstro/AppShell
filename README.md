@@ -93,6 +93,12 @@ search. The shortcut is written once and afterwards only read: it follows the ap
 at is gone, stays with the copy it points at while that is there, and a shortcut of the same name that does not
 carry the id is never rewritten. No-op off Windows.
 
+Inside an app package (MSIX, or a sparse package) it does nothing and returns `StartMenuShortcut.Packaged`: the
+package's manifest names the app already, an app id of the app's own would take its windows away from the package's
+Start entry, and a shortcut written from inside a package lands in the package's private AppData, where the shell
+never looks. So the same call is right in a zip build and in a Store build of the same executable.
+`AppIdentity.IsPackaged` answers the question on its own.
+
 ## Desktop appearance
 
 Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
