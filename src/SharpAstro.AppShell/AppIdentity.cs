@@ -43,9 +43,10 @@ public enum StartMenuShortcut
 ///
 /// <para><b>Inside a package it does nothing.</b> The same executable often ships both ways, as a zip and in a
 /// Store package. In the package, setting an app id of our own would take the windows away from the package's
-/// entry (the taskbar would group them under a second identity, apart from the pinned tile), and a shortcut
-/// written from inside a package lands in the package's private copy of AppData, where the shell never looks.
-/// So <see cref="Claim(string, string)"/> asks <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
+/// entry (the taskbar would group them under a second identity, apart from the pinned tile), and the shortcut
+/// would be a second Start entry beside the package's own; where Windows redirects a packaged app's new AppData
+/// files to a private per-app copy (which depends on the Windows version and the package's trust and
+/// virtualization settings), the shell would not see it at all. So <see cref="Claim(string, string)"/> asks <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
 ///
 /// <para>The shortcut also puts the app in Start menu search. It is written once, beside the user's other
 /// programs (<c>%APPDATA%\Microsoft\Windows\Start Menu\Programs</c>), and afterwards only read: a build run from

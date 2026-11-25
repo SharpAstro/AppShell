@@ -9,7 +9,8 @@ Release notes live here rather than beside the version number: the number is one
 - **`AppIdentity.Claim` does nothing inside an app package, and says so.** A process with a package identity (MSIX,
   or a sparse package) gets its app id, name and icon from the manifest. `Claim` used to set an id of its own there
   too, which takes the windows away from the package's Start entry (the taskbar groups them apart from the pinned
-  tile), and wrote a shortcut that lands in the package's private AppData, where the shell never looks. It now
+  tile), and wrote a shortcut that is a second Start entry beside the package's own (or, where Windows redirects a
+  packaged app's new AppData files to a private copy, one the shell never sees). It now
   returns the new `StartMenuShortcut.Packaged` first, so an executable that ships both as a zip and in a Store
   package (TianWen's FITS viewer, as Astro Photo Viewer) makes the same call in both. `AppIdentity.IsPackaged` is
   the question on its own (`GetCurrentPackageFullName`; always false off Windows). `Packaged` is appended, so the
