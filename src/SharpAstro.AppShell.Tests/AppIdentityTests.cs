@@ -53,6 +53,50 @@ public class AppIdentityTests
     }
 
     [Fact]
+    public void Claim_inside_a_package_returns_Packaged_and_touches_neither_app_id_nor_shortcut()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var name = "AppShellPackagedTest-" + Guid.NewGuid().ToString("N");
+        var link = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), name + ".lnk");
+        try
+        {
+            Claim("SharpAstro.AppShell.Tests.Packaged", name, packaged: true).ShouldBe(StartMenuShortcut.Packaged);
+
+            File.Exists(link).ShouldBeFalse();
+            ProcessAppId().ShouldBeNull();
+        }
+        finally
+        {
+            File.Delete(link);
+        }
+    }
+
+    // The process's explicit app id, or null when none is set (the test host never sets one).
+    private static string? ProcessAppId()
+    {
+        if (GetCurrentProcessExplicitAppUserModelID(out var id) < 0 || id == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Runtime.InteropServices.Marshal.PtrToStringUni(id);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(id);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern int GetCurrentProcessExplicitAppUserModelID(out nint appId);
+
+    [Fact]
     public void Packaged_is_appended_so_the_earlier_values_keep_their_numbers()
     {
         // A caller built against 1.4 compares against these values; adding one must not move them.
