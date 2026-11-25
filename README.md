@@ -96,8 +96,8 @@ carry the id is never rewritten. No-op off Windows.
 Inside an app package (MSIX, or a sparse package) it does nothing and returns `StartMenuShortcut.Packaged`: the
 package's manifest names the app already, an app id of the app's own would take its windows away from the package's
 Start entry, and the shortcut would be a second Start entry beside the package's own (or, where Windows redirects a
-packaged app's new AppData files to a private copy, a file the shell never sees). So the same call is right in a zip build and in a Store build of the same executable.
-`AppIdentity.IsPackaged` answers the question on its own.
+packaged app's new AppData files to a private copy, a file the shell never sees). So the same call is right in a
+zip build and in a Store build of the same executable. `AppIdentity.IsPackaged` answers the question on its own.
 
 ## Desktop appearance
 

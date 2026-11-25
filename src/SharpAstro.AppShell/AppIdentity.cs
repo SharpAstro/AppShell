@@ -46,7 +46,8 @@ public enum StartMenuShortcut
 /// entry (the taskbar would group them under a second identity, apart from the pinned tile), and the shortcut
 /// would be a second Start entry beside the package's own; where Windows redirects a packaged app's new AppData
 /// files to a private per-app copy (which depends on the Windows version and the package's trust and
-/// virtualization settings), the shell would not see it at all. So <see cref="Claim(string, string)"/> asks <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
+/// virtualization settings), the shell would not see it at all. So <see cref="Claim(string, string)"/> asks
+/// <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
 ///
 /// <para>The shortcut also puts the app in Start menu search. It is written once, beside the user's other
 /// programs (<c>%APPDATA%\Microsoft\Windows\Start Menu\Programs</c>), and afterwards only read: a build run from
