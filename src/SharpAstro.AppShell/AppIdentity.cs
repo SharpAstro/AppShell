@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 
 namespace SharpAstro.AppShell;
 
-/// <summary>What <see cref="AppIdentity.Claim"/> found, or did, at the Start menu shortcut that names the app.</summary>
+/// <summary>What <see cref="AppIdentity.Claim(string, string)"/> found, or did, at the Start menu shortcut that names the app.</summary>
 public enum StartMenuShortcut
 {
     /// <summary>Nothing was done: not Windows, or the process's app id could not be set.</summary>
@@ -25,6 +25,10 @@ public enum StartMenuShortcut
 
     /// <summary>The shortcut could not be read or written.</summary>
     Failed,
+
+    /// <summary>Nothing was done: the process runs from an app package (MSIX), whose manifest gives it its app id,
+    /// name and icon already. See <see cref="AppIdentity.IsPackaged"/>.</summary>
+    Packaged,
 }
 
 /// <summary>
@@ -36,6 +40,14 @@ public enum StartMenuShortcut
 /// "Unknown app" for it. With an app id the shell looks for a shortcut that carries the same id, which is how
 /// Chrome is "Google Chrome" there, and takes the shortcut's name and its target's icon. Packaged (MSIX) apps get
 /// both from their manifest; this is the same thing for an app shipped as a zip.</para>
+///
+/// <para><b>Inside a package it does nothing.</b> The same executable often ships both ways, as a zip and in a
+/// Store package. In the package, setting an app id of our own would take the windows away from the package's
+/// entry (the taskbar would group them under a second identity, apart from the pinned tile), and the shortcut
+/// would be a second Start entry beside the package's own; where Windows redirects a packaged app's new AppData
+/// files to a private per-app copy (which depends on the Windows version and the package's trust and
+/// virtualization settings), the shell would not see it at all. So <see cref="Claim(string, string)"/> asks
+/// <see cref="IsPackaged"/> first and returns <see cref="StartMenuShortcut.Packaged"/>.</para>
 ///
 /// <para>The shortcut also puts the app in Start menu search. It is written once, beside the user's other
 /// programs (<c>%APPDATA%\Microsoft\Windows\Start Menu\Programs</c>), and afterwards only read: a build run from
@@ -56,14 +68,25 @@ public static partial class AppIdentity
     /// <param name="displayName">The shortcut's file name, without <c>.lnk</c>: the name the shell shows.</param>
     /// <returns>What was found or done at the shortcut; <see cref="StartMenuShortcut.Present"/>,
     /// <see cref="StartMenuShortcut.Created"/> and <see cref="StartMenuShortcut.Repointed"/> mean the shell can
-    /// name the app. Never throws for a shell that refuses: an app without a name is still an app.</returns>
+    /// name the app, and so does <see cref="StartMenuShortcut.Packaged"/>, from the package's manifest. Never throws
+    /// for a shell that refuses: an app without a name is still an app.</returns>
     public static StartMenuShortcut Claim(string appId, string displayName)
+        => Claim(appId, displayName, packaged: null);
+
+    /// <summary>The body of <see cref="Claim(string, string)"/> with the package check as a parameter, so a test can
+    /// say "packaged" and see that nothing is set or written. Null asks <see cref="IsPackaged"/>.</summary>
+    internal static StartMenuShortcut Claim(string appId, string displayName, bool? packaged)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         if (!OperatingSystem.IsWindows())
         {
             return StartMenuShortcut.None;
+        }
+
+        if (packaged ?? IsPackaged)
+        {
+            return StartMenuShortcut.Packaged;
         }
 
         if (SetCurrentProcessExplicitAppUserModelID(appId) < 0)
@@ -335,6 +358,32 @@ public static partial class AppIdentity
         [FieldOffset(0)] public ushort Vt;
         [FieldOffset(8)] public nint Pointer;
     }
+
+    /// <summary>
+    /// True when this process has a package identity: it runs from an app package (MSIX), or from a sparse package
+    /// that gives an unpackaged executable one. The package's manifest then names the app, and
+    /// <see cref="Claim(string, string)"/> leaves it alone. Always false off Windows. Asked of the system on each read; it is cheap.
+    /// Deliberately biased: only the system's "no package" answer reads as false, so an unexpected error from the
+    /// query also reads as true (see the note on <c>AppModelErrorNoPackage</c> for why that is the safer wrong answer).
+    /// </summary>
+    public static bool IsPackaged => OperatingSystem.IsWindows() && HasPackageIdentity();
+
+    // GetCurrentPackageFullName with no buffer answers APPMODEL_ERROR_NO_PACKAGE for a process without a package
+    // identity, and ERROR_INSUFFICIENT_BUFFER (the name would not fit in nothing) for one with it. Anything but the
+    // first is read as packaged: wrongly calling a zip build packaged costs it its name in the shell, while wrongly
+    // calling a packaged build unpackaged splits its windows from its own Start entry.
+    private const int AppModelErrorNoPackage = 15700;
+
+    [SupportedOSPlatform("windows")]
+    private static unsafe bool HasPackageIdentity()
+    {
+        uint length = 0;
+        return GetCurrentPackageFullName(&length, null) != AppModelErrorNoPackage;
+    }
+
+    [LibraryImport("kernel32.dll")]
+    [SupportedOSPlatform("windows")]
+    private static unsafe partial int GetCurrentPackageFullName(uint* length, char* fullName);
 
     // LibraryImport, not DllImport: the marshalling is source-generated, so this stays AOT-clean.
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
