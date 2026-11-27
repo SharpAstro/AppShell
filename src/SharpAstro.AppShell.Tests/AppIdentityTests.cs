@@ -68,6 +68,21 @@ public class AppIdentityTests
     public void Register_validates_its_arguments(string appId, string name)
         => Should.Throw<ArgumentException>(() => AppIdentity.Register(appId, name));
 
+    [Theory]
+    [InlineData(@"Company\Product")]
+    [InlineData(@"..\..\Run")]
+    [InlineData(".Company.Product")]
+    [InlineData("Company.Product.")]
+    public void Register_refuses_an_app_id_that_is_not_one_key_name(string appId)
+    {
+        var registry = new FakeRegistry();
+
+        Should.Throw<ArgumentException>(() => AppIdentity.Register(appId, "Viewer", null, registry, packaged: false))
+            .ParamName.ShouldBe("appId");
+        Should.Throw<ArgumentException>(() => AppIdentity.Register(appId, "Viewer"));
+        registry.Writes.ShouldBe(0);
+    }
+
     private sealed class RefusingRegistry : IUserRegistry
     {
         public string? Read(string subKey, string name) => null;

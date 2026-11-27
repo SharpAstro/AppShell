@@ -142,10 +142,11 @@ public static partial class AppIdentity
     /// <param name="iconPath">An image file (<c>.png</c> or <c>.ico</c>) for the toast's icon, or null for none. The shell
     /// reads <c>IconUri</c> as an image: an <c>.exe</c> there leaves the default icon.</param>
     /// <returns>What was done; never throws for the registry.</returns>
+    /// <exception cref="ArgumentException">The app id is blank, holds a backslash (which would write a nested key) or
+    /// starts or ends with a dot, or the name is blank.</exception>
     public static AppUserModelRegistration Register(string appId, string displayName, string? iconPath = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        ValidateRegistration(appId, displayName);
         if (!OperatingSystem.IsWindows())
         {
             return AppUserModelRegistration.None;
@@ -164,8 +165,7 @@ public static partial class AppIdentity
     /// parameters. Packaged is checked first, as <see cref="Claim(string, string)"/> does.</summary>
     internal static AppUserModelRegistration Register(string appId, string displayName, string? iconPath, IUserRegistry registry, bool? packaged)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        ValidateRegistration(appId, displayName);
         if (packaged ?? IsPackaged)
         {
             return AppUserModelRegistration.Packaged;
@@ -188,6 +188,19 @@ public static partial class AppIdentity
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             return AppUserModelRegistration.Failed;
+        }
+    }
+
+    // The app id becomes one registry key name under AppUserModelId: a backslash would make it a nested key, and a
+    // leading or trailing dot is not the Company.Product form Claim documents.
+    private static void ValidateRegistration(string appId, string displayName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        if (appId.Contains('\\') || appId.StartsWith('.') || appId.EndsWith('.'))
+        {
+            throw new ArgumentException(
+                $"'{appId}' is not an app id of the form Company.Product: no backslash, and no dot at either end", nameof(appId));
         }
     }
 
