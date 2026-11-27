@@ -112,7 +112,9 @@ so it is AOT-clean from plain `net10.0`.
 gives the process are what give the toast its name and icon. A toast is shown under, in order: the
 `AppId` in the options, the id of a successful `Claim`, the id of a successful `AppIdentity.Register` (see below),
 the process's own explicit app id, and for a packaged process the default notifier (its manifest names the app).
-With none of these the result is `NoIdentity`.
+With none of these the result is `NoIdentity`. An explicit `AppId` in the options that nothing registers (no
+`AppUserModelId` registry key, not the process's own, and no toast shown under it before) also answers `NoIdentity`,
+naming it as unregistered; a Start menu shortcut alone is not seen until the id has shown a toast.
 
 ```csharp
 AppIdentity.Claim("MyCompany.Viewer", "Viewer");

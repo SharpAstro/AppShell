@@ -72,6 +72,43 @@ public class DesktopNotificationTests
     }
 
     [Fact]
+    public void A_registry_that_throws_does_not_refuse_the_id()
+        => DesktopNotification.UnregisteredReason("Some.App", null, null, null, false, new LaunchSchemeTests.ThrowingRegistry()).ShouldBeNull();
+
+    [Fact]
+    public void The_refusal_names_the_id_and_does_not_promise_a_shortcut_is_seen()
+    {
+        var reason = DesktopNotification.UnregisteredReason("Some.App", null, null, null, false, new FakeRegistry()).ShouldNotBeNull();
+        reason.ShouldContain("'Some.App'");
+        reason.ShouldContain("AppIdentity.Register");
+        reason.ShouldContain("not seen");
+    }
+
+    [Fact]
+    public void The_identity_the_calls_use_refuses_an_unregistered_asked_for_id()
+    {
+        var (id, reason) = DesktopNotification.CurrentIdentity("Not.Registered.Anywhere", new FakeRegistry());
+        id.ShouldBeNull();
+        reason.ShouldNotBeNull().ShouldContain("Not.Registered.Anywhere");
+    }
+
+    [Fact]
+    public void The_identity_the_calls_use_takes_a_registered_asked_for_id()
+    {
+        var registry = new FakeRegistry();
+        registry.Write(@"Software\Classes\AppUserModelId\Reg.App", "DisplayName", "Reg");
+        DesktopNotification.CurrentIdentity("Reg.App", registry).ShouldBe(("Reg.App", null));
+    }
+
+    [Fact]
+    public void The_identity_the_calls_use_lets_Windows_answer_when_the_registry_throws()
+        => DesktopNotification.CurrentIdentity("Some.App", new LaunchSchemeTests.ThrowingRegistry()).ShouldBe(("Some.App", null));
+
+    [Fact]
+    public void With_no_registry_the_asked_for_id_is_not_checked()
+        => DesktopNotification.CurrentIdentity("Some.App", null).ShouldBe(("Some.App", null));
+
+    [Fact]
     public void A_launch_payload_with_no_scheme_throws()
         => Should.Throw<ArgumentException>(() => DesktopNotification.Show("t", null, new DesktopNotificationOptions { LaunchPayload = "job-1" }));
 

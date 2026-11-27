@@ -131,7 +131,7 @@ public class LaunchSchemeTests
     public void No_executable_is_a_failed_result()
         => LaunchScheme.Register("viewer", AppId, "Viewer", null, new FakeRegistry(), _ => true).ShouldBe(LaunchSchemeRegistration.Failed);
 
-    private sealed class ThrowingRegistry : IUserRegistry
+    internal sealed class ThrowingRegistry : IUserRegistry
     {
         public string? Read(string subKey, string name) => throw new UnauthorizedAccessException();
 
