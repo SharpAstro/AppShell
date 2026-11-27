@@ -40,6 +40,37 @@ public class DesktopNotificationTests
         reason.ShouldNotBeNull().ShouldContain("AppIdentity.Claim");
     }
 
+    private const string AumidKey = @"Software\Classes\AppUserModelId\Some.App";
+    private const string SettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\Some.App";
+
+    [Fact]
+    public void An_asked_for_id_that_nothing_registers_is_refused_and_says_so()
+        => DesktopNotification.UnregisteredReason("Some.App", null, null, null, false, new FakeRegistry())
+            .ShouldNotBeNull().ShouldContain("nothing registers");
+
+    [Fact]
+    public void An_asked_for_id_with_a_registry_key_or_an_earlier_toast_is_not_refused()
+    {
+        var registry = new FakeRegistry();
+        registry.Write(AumidKey, "DisplayName", "Some");
+        DesktopNotification.UnregisteredReason("Some.App", null, null, null, false, registry).ShouldBeNull();
+
+        var shown = new FakeRegistry();
+        shown.Write(SettingsKey, "Enabled", "1");
+        DesktopNotification.UnregisteredReason("Some.App", null, null, null, false, shown).ShouldBeNull();
+    }
+
+    [Fact]
+    public void The_process_own_ids_a_package_and_no_ask_are_never_refused()
+    {
+        var none = new FakeRegistry();
+        DesktopNotification.UnregisteredReason("Some.App", "Some.App", null, null, false, none).ShouldBeNull();
+        DesktopNotification.UnregisteredReason("Some.App", null, "Some.App", null, false, none).ShouldBeNull();
+        DesktopNotification.UnregisteredReason("Some.App", null, null, "Some.App", false, none).ShouldBeNull();
+        DesktopNotification.UnregisteredReason("Some.App", null, null, null, true, none).ShouldBeNull();
+        DesktopNotification.UnregisteredReason(null, null, null, null, false, none).ShouldBeNull();
+    }
+
     [Fact]
     public void A_launch_payload_with_no_scheme_throws()
         => Should.Throw<ArgumentException>(() => DesktopNotification.Show("t", null, new DesktopNotificationOptions { LaunchPayload = "job-1" }));

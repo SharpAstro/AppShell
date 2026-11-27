@@ -13,6 +13,8 @@ internal sealed class FakeRegistry : IUserRegistry
 
     public string? Read(string subKey, string name) => Values.GetValueOrDefault((subKey, name));
 
+    public bool KeyExists(string subKey) => Values.Keys.Any(k => k.Key == subKey || k.Key.StartsWith(subKey + @"\", StringComparison.Ordinal));
+
     public void Write(string subKey, string name, string value)
     {
         Values[(subKey, name)] = value;
@@ -132,6 +134,8 @@ public class LaunchSchemeTests
     private sealed class ThrowingRegistry : IUserRegistry
     {
         public string? Read(string subKey, string name) => throw new UnauthorizedAccessException();
+
+        public bool KeyExists(string subKey) => throw new UnauthorizedAccessException();
 
         public void Write(string subKey, string name, string value) => throw new UnauthorizedAccessException();
 

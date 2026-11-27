@@ -87,6 +87,8 @@ public class AppIdentityTests
     {
         public string? Read(string subKey, string name) => null;
 
+        public bool KeyExists(string subKey) => false;
+
         public void Write(string subKey, string name, string value) => throw new UnauthorizedAccessException();
 
         public void DeleteTree(string subKey) => throw new UnauthorizedAccessException();
