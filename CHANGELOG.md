@@ -13,6 +13,8 @@ Release notes live here rather than beside the version number: the number is one
   or `Urgent`; a tag and group replace and withdraw; long tags are mapped to a stable short form; the text is
   flattened, cleaned of what XML cannot hold, and cut. Every call returns one `DesktopNotificationResult` (status
   plus a reason naming the call and HRESULT) and never throws for the system; `Unsupported` off Windows.
+  `Disabled` comes from the notifier's setting; an app id that has never shown a toast has no setting yet (Windows
+  answers ERROR_NOT_FOUND until its first toast), which is not taken as a refusal.
   `DesktopNotification.LogOnce` says once why toasts are unavailable. `AppIdentity` now records the id of a
   successful `Claim`. Ported from pilot's `WinRtToastRunner` (SharpAstro/pilot#1378). (AppShell#7; consumers:
   SharpAstro/tianwen#2507, SharpAstro/pilot#1356.)
@@ -24,7 +26,8 @@ Release notes live here rather than beside the version number: the number is one
   registered scheme or `Scheme`) puts `activationType="protocol"` and the link on the toast, and the app hands the
   link through `InstanceGate` to the running instance. The payload is untrusted input. `AppIdentity.Register(appId,
   displayName, iconPath?)` writes the `HKCU\...\AppUserModelId\<appId>` key (an image file for the icon) for a process
-  with no Start menu shortcut, and `DesktopNotification` resolves it after the claimed id. The `Shell_NotifyIcon`
+  with no Start menu shortcut, and `DesktopNotification` resolves it after the claimed id; an app id with a
+  backslash or a dot at either end is an `ArgumentException`. The `Shell_NotifyIcon`
   fallback is left out: the registry identity covers a process without a shortcut. (AppShell#7.)
 
 ## 1.6
