@@ -216,7 +216,7 @@ internal static unsafe partial class WinRtToast
 
     private static DesktopNotificationResult NotRegistered(string? appId, string call, int hr) =>
         DesktopNotificationResult.NoIdentity(
-            $"the app id {(appId is null ? "of this process" : $"'{appId}'")} is registered nowhere (no Start menu shortcut and no registry key carries it): {Describe(call, hr)}");
+            $"the app id {(appId is null ? "of this process" : $"'{appId}'")} is not known to Windows' notification platform in this session ({Describe(call, hr)}). Either no Start menu shortcut and no registry key carries it, or the platform cannot serve this session at all (in a remote desktop session it answers the same for every app id, Windows' own included).");
 
     private static nint Build(Refs refs, string xml, string? tag, string? group)
     {
