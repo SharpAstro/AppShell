@@ -102,6 +102,42 @@ Start entry, and the shortcut would be a second Start entry beside the package's
 packaged app's new AppData files to a private copy, a file the shell never sees). So the same call is right in a
 zip build and in a Store build of the same executable. `AppIdentity.IsPackaged` answers the question on its own.
 
+## Desktop notifications
+
+`DesktopNotification` shows, replaces and withdraws a Windows toast in process, through the WinRT toast API
+called by vtable: no PowerShell, no .NET Framework, no CsWinRT, no `-windows` target framework and no helper DLL,
+so it is AOT-clean from plain `net10.0`.
+
+**Call `AppIdentity.Claim` first.** Windows shows a toast under an app, and the app id and shortcut that `Claim`
+gives the process are what give the toast its name and icon. A toast is shown under, in order: the
+`AppId` in the options, the id of a successful `Claim`, the process's own explicit app id, and for a packaged
+process the default notifier (its manifest names the app). With none of these the result is `NoIdentity`.
+
+```csharp
+AppIdentity.Claim("MyCompany.Viewer", "Viewer");
+
+var options = new DesktopNotificationOptions { Tag = "export", Group = "jobs" };
+DesktopNotification.Show("Export finished", "42 files written", options);
+DesktopNotification.Show("Export finished", "43 files written", options); // replaces the first
+DesktopNotification.Withdraw("export", "jobs");                           // removes it from the notification centre
+var left = DesktopNotification.GetDelivered().Toasts;                     // tag and group of what is still there
+```
+
+A toast with the same tag and group replaces the earlier one; `Withdraw` takes it back (one that is not there is
+a success). A tag or group longer than 64 characters, which Windows refuses, is mapped to a short stable form, so
+`Show` and `Withdraw` still name the same toast. Text is flattened to single spaces, stripped of characters XML
+cannot hold, and cut to 60 (title) and 200 (body) characters with an ellipsis.
+
+Urgency: `Normal` shows, then rests in the notification centre. `Reminder` stays on screen until the person
+dismisses it, with the system's own Dismiss button. `Urgent` is a reminder that Windows 11 can let through Do Not
+Disturb when the person allows that for the app, so keep it for the most serious level.
+
+Every call returns one `DesktopNotificationResult`: a `Status` (`Succeeded`, `NoIdentity`, `Disabled`,
+`Unsupported`, `Failed`) and a `Reason` that names the failing call and its HRESULT. Nothing throws for the system;
+only a wrong argument (a blank title, a tag without a group) throws `ArgumentException`. `Probe()` says whether a toast
+would show without showing one, and `DesktopNotification.LogOnce(log)` (or an `ILogger`) says once why toasts are
+unavailable and nothing when they are. Off Windows every call returns `Unsupported` for now.
+
 ## Desktop appearance
 
 Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
