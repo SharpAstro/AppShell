@@ -14,8 +14,13 @@ namespace SharpAstro.AppShell;
 internal static class ToastXml
 {
     /// <summary>The toast XML for <paramref name="title"/> and <paramref name="body"/> at <paramref name="urgency"/>.</summary>
-    internal static string Build(string title, string? body, ToastUrgency urgency)
+    internal static string Build(string title, string? body, ToastUrgency urgency, string? launch = null)
     {
+        // A launch link makes a click start the link's scheme handler (protocol activation); escaped as any attribute.
+        var activation = string.IsNullOrEmpty(launch)
+            ? string.Empty
+            : $" activationType=\"protocol\" launch=\"{Escape(launch)}\"";
+
         // A reminder or an urgent toast without a button behaves like a normal one (a reminder would not stay
         // until dismissed), so both carry the system's own dismiss action. activationType="system" with
         // arguments="dismiss" and an empty content gets the localised label of the system's Dismiss button.
@@ -36,7 +41,7 @@ internal static class ToastXml
             lines += $"<text>{Escape(text)}</text>";
         }
 
-        return $"<toast{scenario}><visual><binding template=\"ToastGeneric\">{lines}</binding></visual>{actions}</toast>";
+        return $"<toast{activation}{scenario}><visual><binding template=\"ToastGeneric\">{lines}</binding></visual>{actions}</toast>";
     }
 
     /// <summary>

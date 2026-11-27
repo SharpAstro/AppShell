@@ -138,6 +138,63 @@ only a wrong argument (a blank title, a tag without a group) throws `ArgumentExc
 would show without showing one, and `DesktopNotification.LogOnce(log)` (or an `ILogger`) says once why toasts are
 unavailable and nothing when they are. Off Windows every call returns `Unsupported` for now.
 
+### A process with no shortcut: the registry identity
+
+A process with no windows and no Start menu shortcut (a headless node) can still show toasts.
+`AppIdentity.Register(appId, displayName, iconPath?)` writes `HKCU\Software\Classes\AppUserModelId\<appId>` with a
+`DisplayName` and, only when `iconPath` is given, an `IconUri`; that is all Windows needs to show a toast under the
+id. It sets no app id on the process and writes no shortcut, writes only the values that differ (so it is idempotent),
+does nothing in a package or off Windows, and returns an `AppUserModelRegistration` (`Present`, `Written`, `Failed`,
+`Packaged`, `None`), never throwing for the registry. `DesktopNotification` resolves the id it registered right after
+the claimed one. The shell reads `IconUri` as an image file (`.png` or `.ico`): an `.exe` there leaves the default icon.
+
+A `Shell_NotifyIcon` balloon fallback is left out on purpose: the registry identity already covers a process without
+a shortcut, so there is no second path to maintain.
+
+### A click on a toast
+
+A click reaches the running instance through a per-user URL scheme and `InstanceGate`. `LaunchScheme.Register(scheme,
+appId, displayName)` writes `HKCU\Software\Classes\<scheme>` so that the shell starts this executable with the link
+as its one argument. The scheme carries `AppUserModelID=<appId>`, which ties what it starts to the app and marks the
+scheme as yours: one that is missing is created, one that is yours and starts an executable that exists is kept (an
+installed copy keeps it over a development build), one that is yours and starts nothing is repointed, and one with no
+`AppUserModelID` or another one is left alone (`Foreign`). The scheme is a lower-case RFC 3986 scheme; `http`,
+`https`, `file`, `mailto`, `ms-*` and the other schemes the shell owns are refused with `ArgumentException`.
+
+```csharp
+AppIdentity.Claim("MyCompany.Viewer", "Viewer");
+LaunchScheme.Register("viewer", "MyCompany.Viewer", "Viewer");
+
+// A toast whose click hands "export-42" to the app:
+DesktopNotification.Show("Export finished", null, new DesktopNotificationOptions { LaunchPayload = "export-42" });
+
+// At startup, before opening the window:
+var channel = InstanceGate.ChannelFor("viewer");
+if (args.Length > 0 && LaunchScheme.TryRead(args[0], "viewer", out _))
+{
+    if (InstanceGate.TryHandOff(channel, args[0], TimeSpan.FromSeconds(2)))
+    {
+        return; // the running instance has it
+    }
+    // no instance is running: fall through, this process opens normally with the payload
+}
+
+// In the running instance, for each hand-off the gate delivers:
+if (gate.TryDequeue(out var request) && LaunchScheme.TryRead(request.Payload, "viewer", out var id))
+{
+    OpenExport(id);          // look the id up
+    window.Activate();       // WindowActivation, as for a file hand-off
+}
+```
+
+`DesktopNotificationOptions.LaunchPayload` makes the toast carry `activationType="protocol"` and the link
+`LaunchScheme.Link(scheme, payload)`, with the scheme registered in this process or `DesktopNotificationOptions.Scheme`.
+A payload with no scheme is an `ArgumentException`; without a payload the toast carries no launch.
+
+**The payload is untrusted input.** Any process or web page can start a registered scheme with any text, so what
+comes back from `TryRead` is an id to look up, never a command, a path to run or a file to open unchecked.
+`TryRead` itself only accepts the links `Link` makes and returns false for another scheme or a malformed link.
+
 ## Desktop appearance
 
 Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
