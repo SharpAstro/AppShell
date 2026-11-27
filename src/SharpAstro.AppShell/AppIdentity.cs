@@ -86,6 +86,7 @@ public static partial class AppIdentity
 
         if (packaged ?? IsPackaged)
         {
+            ClaimedPackaged = true;
             return StartMenuShortcut.Packaged;
         }
 
@@ -101,7 +102,49 @@ public static partial class AppIdentity
             return StartMenuShortcut.Failed;
         }
 
-        return EnsureShortcut(Path.Combine(programs, displayName + ".lnk"), appId, target);
+        var shortcut = EnsureShortcut(Path.Combine(programs, displayName + ".lnk"), appId, target);
+        if (shortcut is StartMenuShortcut.Present or StartMenuShortcut.Created or StartMenuShortcut.Repointed)
+        {
+            ClaimedAppId = appId;
+        }
+
+        return shortcut;
+    }
+
+    /// <summary>The app id of a <see cref="Claim(string, string)"/> that the shell can name the app from
+    /// (<see cref="StartMenuShortcut.Present"/>, <see cref="StartMenuShortcut.Created"/> or
+    /// <see cref="StartMenuShortcut.Repointed"/>), or null when there was none. What <see cref="DesktopNotification"/>
+    /// shows its toasts under.</summary>
+    internal static string? ClaimedAppId { get; private set; }
+
+    /// <summary>True once a <see cref="Claim(string, string)"/> found the process packaged
+    /// (<see cref="StartMenuShortcut.Packaged"/>): its toasts then go through the default notifier.</summary>
+    internal static bool ClaimedPackaged { get; private set; }
+
+    /// <summary>The app id this process carries (<c>GetCurrentProcessExplicitAppUserModelID</c>), or null when it
+    /// has none or this is not Windows.</summary>
+    internal static unsafe string? ExplicitAppId()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        nint id;
+        if (GetCurrentProcessExplicitAppUserModelID(&id) < 0 || id == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var text = new string((char*)id);
+            return text.Length == 0 ? null : text;
+        }
+        finally
+        {
+            CoTaskMemFree(id);
+        }
     }
 
     /// <summary>What to do at a shortcut path, given what is there. Kept apart from the shell so the policy can be
@@ -389,6 +432,14 @@ public static partial class AppIdentity
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
     [SupportedOSPlatform("windows")]
     private static partial int SetCurrentProcessExplicitAppUserModelID(string appId);
+
+    [LibraryImport("shell32.dll")]
+    [SupportedOSPlatform("windows")]
+    private static unsafe partial int GetCurrentProcessExplicitAppUserModelID(nint* appId);
+
+    [LibraryImport("ole32.dll")]
+    [SupportedOSPlatform("windows")]
+    private static partial void CoTaskMemFree(nint memory);
 
     [LibraryImport("ole32.dll")]
     [SupportedOSPlatform("windows")]
