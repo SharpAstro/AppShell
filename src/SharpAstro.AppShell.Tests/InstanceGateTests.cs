@@ -45,6 +45,42 @@ public class InstanceGateTests
     }
 
     [Fact]
+    public void An_unclaimed_channel_is_known_absent_on_windows_and_unknown_elsewhere()
+    {
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("probe-absent"));
+
+        InstanceGate.IsKnownAbsent(channel).ShouldBe(OperatingSystem.IsWindows());
+    }
+
+    [Fact]
+    public void A_held_channel_is_not_known_absent_and_is_again_once_released()
+    {
+        var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("probe-held"));
+
+        var gate = InstanceGate.TryClaim(channel);
+        gate.ShouldNotBeNull();
+        InstanceGate.IsKnownAbsent(channel).ShouldBeFalse();
+
+        gate.Dispose();
+        InstanceGate.IsKnownAbsent(channel).ShouldBe(OperatingSystem.IsWindows());
+    }
+
+    [Fact]
+    public void A_channel_that_could_not_be_a_file_name_answers_cannot_tell()
+    {
+        InstanceGate.IsKnownAbsent("not/safe").ShouldBeFalse();
+        InstanceGate.IsKnownAbsent("sp ace").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_channel_is_refused(string channel)
+    {
+        Should.Throw<ArgumentException>(() => InstanceGate.IsKnownAbsent(channel));
+    }
+
+    [Fact]
     public void The_first_claim_wins_and_the_second_is_refused()
     {
         var channel = InstanceGate.ChannelFor(Scope, UniqueIdentity("exclusive"));

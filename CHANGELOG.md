@@ -4,6 +4,14 @@ Release notes live here rather than beside the version number: the number is one
 `Directory.Build.props` and nothing reads prose from there. Newest first, one section per
 `MAJOR.MINOR`.
 
+## 1.6
+
+- **`InstanceGate.IsKnownAbsent(channel)` is public: the non-claiming "is the instance held" probe.** It claims
+  nothing and connects to nothing, so a holder sees no hand-off. `true` means certainly nobody holds the channel;
+  `false` means held, or cannot tell (always `false` off Windows, and for a name that could not be a file name), so
+  a consumer asking "is X running" reads `!IsKnownAbsent` as "held or cannot tell" and need not know the pipe
+  namespace. A blank channel throws `ArgumentException`. (AppShell#9, SharpAstro/pilot#1374.)
+
 ## 1.5
 
 - **`AppIdentity.Claim` does nothing inside an app package, and says so.** A process with a package identity (MSIX,

@@ -278,7 +278,9 @@ public sealed class InstanceGate : IDisposable
 
     /// <summary>
     /// Whether it is CERTAIN that nothing holds <paramref name="channel"/> -- false means "held, or
-    /// cannot tell", so a caller still has to try.
+    /// cannot tell", so a caller still has to try. A probe only: it claims nothing and connects to
+    /// nothing, so a holder sees no hand-off. A consumer asking "is X running" reads
+    /// <c>!IsKnownAbsent</c> as "held, or cannot tell".
     /// </summary>
     /// <remarks>
     /// <para><b>Why an existence check exists at all.</b>
@@ -302,8 +304,10 @@ public sealed class InstanceGate : IDisposable
     /// caller opens its own window, which is this class's documented fallback for every failed
     /// hand-off.</para>
     /// </remarks>
-    private static bool IsKnownAbsent(string channel)
+    public static bool IsKnownAbsent(string channel)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channel);
+
         if (!OperatingSystem.IsWindows())
         {
             return false;
