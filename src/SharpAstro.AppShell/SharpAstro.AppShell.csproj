@@ -16,8 +16,8 @@
          VersionPrefix. Bump it THERE; do not restate it here. -->
     <AssemblyVersion>$(VersionMajorMinor).0.0</AssemblyVersion>
     <PackageId>SharpAstro.AppShell</PackageId>
-    <Description>Desktop app-shell plumbing for single-window native applications: a named-pipe single-instance gate that hands a later launch's file to the already-running process, scoped by whatever identity the app chooses (whole-app, or one instance per open folder), plus the Windows foreground-activation handshake that lets the running window actually come to the front, the app id and Start menu shortcut that let the Windows shell name an unpackaged app, a crash trace that leaves an uncaught exception in the app's own log, and the desktop's accent colour ramp and light/dark mode, read once and opt-in.</Description>
-    <PackageTags>single-instance;named-pipe;desktop;file-association;activation;shell;aot;accent;theme;dark-mode</PackageTags>
+    <Description>Desktop app-shell plumbing for single-window native applications: a named-pipe single-instance gate that hands a later launch's file to the already-running process, scoped by whatever identity the app chooses (whole-app, or one instance per open folder), plus the Windows foreground-activation handshake that lets the running window actually come to the front, the app id and Start menu shortcut that let the Windows shell name an unpackaged app, desktop notifications (OS toasts shown, replaced and withdrawn in process through WinRT, AOT-safe), a crash trace that leaves an uncaught exception in the app's own log, and the desktop's accent colour ramp and light/dark mode, read once and opt-in.</Description>
+    <PackageTags>single-instance;named-pipe;desktop;file-association;activation;shell;aot;accent;theme;dark-mode;notifications;toasts</PackageTags>
     <Authors>Sebastian Godelet</Authors>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
