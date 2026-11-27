@@ -11,6 +11,9 @@ internal interface IUserRegistry
     /// <c>HKCU\<paramref name="subKey"/></c>, or null when the key or the value is missing or not a string.</summary>
     string? Read(string subKey, string name);
 
+    /// <summary>Whether <c>HKCU\<paramref name="subKey"/></c> exists, whatever it holds.</summary>
+    bool KeyExists(string subKey);
+
     /// <summary>Sets the string value, creating the key.</summary>
     void Write(string subKey, string name, string value);
 
@@ -27,6 +30,13 @@ internal sealed class UserRegistry : IUserRegistry
     {
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(subKey);
         return key?.GetValue(name) as string;
+    }
+
+    /// <inheritdoc />
+    public bool KeyExists(string subKey)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(subKey);
+        return key is not null;
     }
 
     /// <inheritdoc />

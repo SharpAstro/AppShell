@@ -284,13 +284,12 @@ internal static unsafe class Sample
 
     private static void SelfTest()
     {
-        var created = _claimResult == StartMenuShortcut.Created;
         Log($"self-test: identity 1 is the claimed app id '{Program.AppId}' (Start menu shortcut, {_claimResult})");
         Log($"self-test: identity 2 is '{Program.HeadlessAppId}', given only by AppIdentity.Register: {AppIdentity.Register(Program.HeadlessAppId, Program.DisplayName + " (headless)")} (registry key, no shortcut)");
 
         // both identities always run, so one that cannot show toasts does not hide what the other does
-        RunIdentity("claimed", null, created);
-        RunIdentity("registry", Program.HeadlessAppId, false);
+        RunIdentity("claimed", null);
+        RunIdentity("registry", Program.HeadlessAppId);
 
         // the click: the shell resolves the scheme as a click on the toast does, and starts a second copy of this exe
         _clickPayload = "self-test-" + Guid.NewGuid().ToString("N")[..8];
@@ -309,7 +308,7 @@ internal static unsafe class Sample
     }
 
     // Normal, replace by tag as Reminder, Urgent, then withdraw both: for one app id. False when toasts cannot be shown at all.
-    private static bool RunIdentity(string label, string? appId, bool shortcutJustCreated)
+    private static bool RunIdentity(string label, string? appId)
     {
         var tagA = $"self-test-{label}-A";
         var tagB = $"self-test-{label}-B";
@@ -321,11 +320,6 @@ internal static unsafe class Sample
         if (probe.Status is DesktopNotificationStatus.NoIdentity or DesktopNotificationStatus.Disabled)
         {
             Log($"CANNOT {label}: toasts are not available ({probe.Status}): {probe.Reason}");
-            if (shortcutJustCreated)
-            {
-                Log($"NOTE {label}: the shortcut was created by this very run; the shell may not know the app id yet. Not retried here: run --self-test again.");
-            }
-
             _cannot = true;
             return false;
         }
@@ -340,10 +334,6 @@ internal static unsafe class Sample
 
         Step($"{label}: Show A (Normal) answers success", shown.IsSuccess, shown.IsSuccess ? "" : $" ({shown.Status}: {shown.Reason})");
         var count = Count(appId, tagA);
-        if (count == 0 && shortcutJustCreated)
-        {
-            Log($"NOTE {label}: the first toast right after the shortcut was created was dropped (delivered read found none); not retried");
-        }
 
         Step($"{label}: delivered read finds A exactly once", count == 1, $" (found {count})");
 

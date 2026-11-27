@@ -102,7 +102,10 @@ public sealed record DesktopNotificationOptions
     public string? Group { get; init; }
 
     /// <summary>The app id to show the toast under, in place of the one <see cref="AppIdentity.Claim(string, string)"/>
-    /// gave the process. It must be one that a Start menu shortcut or a registry key registers.</summary>
+    /// gave the process. It must be one that a registry key registers
+    /// (<see cref="AppIdentity.Register(string, string, string?)"/>), the process's own, or one that has shown a toast before (a
+    /// Start menu shortcut's id does once it has); any other answers <see cref="DesktopNotificationStatus.NoIdentity"/>
+    /// naming it as unregistered.</summary>
     public string? AppId { get; init; }
 
     /// <summary>What a click on the toast hands to the app: an id to look up. With it the toast carries
@@ -285,8 +288,55 @@ public static class DesktopNotification
     }
 
     // The identity this process shows toasts under, read from what Claim recorded and what the process carries.
-    private static (string? AppId, string? Reason) CurrentIdentity(string? requested) =>
-        ResolveIdentity(requested, AppIdentity.ClaimedAppId, AppIdentity.RegisteredAppId, AppIdentity.ExplicitAppId(), AppIdentity.ClaimedPackaged || AppIdentity.IsPackaged);
+    // An asked-for app id that nothing registers is refused here, so Show and Probe tell it from one that has not shown a toast yet.
+    private static (string? AppId, string? Reason) CurrentIdentity(string? requested)
+    {
+        var claimed = AppIdentity.ClaimedAppId;
+        var registered = AppIdentity.RegisteredAppId;
+        var explicitId = AppIdentity.ExplicitAppId();
+        var packaged = AppIdentity.ClaimedPackaged || AppIdentity.IsPackaged;
+        if (OperatingSystem.IsWindows()
+            && UnregisteredReason(requested, claimed, registered, explicitId, packaged, new UserRegistry()) is { } unregistered)
+        {
+            return (null, unregistered);
+        }
+
+        return ResolveIdentity(requested, claimed, registered, explicitId, packaged);
+    }
+
+    /// <summary>
+    /// Why an app id asked for (<see cref="DesktopNotificationOptions.AppId"/>) is refused: nothing registers it. It is
+    /// known when it is this process's own (claimed, registered or explicit), when the current user has an
+    /// <c>AppUserModelId</c> key for it, or when Windows keeps notification settings for it (made on its first toast,
+    /// which covers an id a shortcut registered and that has shown a toast). An id that is registered but has not shown
+    /// a toast yet passes; one nothing registers is refused with a reason that says so. A packaged process is never
+    /// refused. Pure over the registry, so a test needs no Windows.
+    /// </summary>
+    /// <returns>The reason, or null when the id is known or none was asked for.</returns>
+    internal static string? UnregisteredReason(string? requested, string? claimed, string? registered, string? explicitId, bool packaged, IUserRegistry registry)
+    {
+        if (string.IsNullOrWhiteSpace(requested) || packaged
+            || requested == claimed || requested == registered || requested == explicitId)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (registry.KeyExists(@"Software\Classes\AppUserModelId\" + requested)
+                || registry.KeyExists(@"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\" + requested))
+            {
+                return null;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException)
+        {
+            return null; // cannot tell: let Windows answer
+        }
+
+        return $"nothing registers the app id '{requested}' for this user (no AppUserModelId registry key, and it has shown no toast before): "
+            + "register it with AppIdentity.Register or a Start menu shortcut first";
+    }
 
     /// <summary>
     /// Which app id a toast is shown under, in order: the one asked for, the one a successful
