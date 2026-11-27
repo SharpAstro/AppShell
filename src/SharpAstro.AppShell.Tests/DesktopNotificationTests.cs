@@ -90,6 +90,8 @@ public class DesktopNotificationTests
         DesktopNotification.GetDelivered().Status.ShouldBe(DesktopNotificationStatus.Unsupported);
         DesktopNotification.Probe().Status.ShouldBe(DesktopNotificationStatus.Unsupported);
         AppIdentity.ExplicitAppId().ShouldBeNull();
+        AppIdentity.Register("SharpAstro.AppShell.Tests", "Viewer").ShouldBe(AppUserModelRegistration.None);
+        LaunchScheme.Register("appshell-tests", "SharpAstro.AppShell.Tests", "Viewer").ShouldBe(LaunchSchemeRegistration.None);
     }
 
     [Fact]
