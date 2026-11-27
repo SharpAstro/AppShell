@@ -195,6 +195,20 @@ A payload with no scheme is an `ArgumentException`; without a payload the toast 
 comes back from `TryRead` is an id to look up, never a command, a path to run or a file to open unchecked.
 `TryRead` itself only accepts the links `Link` makes and returns false for another scheme or a malformed link.
 
+### Trying it
+
+`samples/ToastSample` is a NativeAOT Win32 sample that exercises all of the above in a window that logs every step.
+
+```
+dotnet publish samples/ToastSample/ToastSample.csproj -c Release -r win-x64
+samples\ToastSamplein\Release
+et10.0\win-x64\publish\ToastSample.exe --self-test
+```
+
+`--self-test` runs, for the claimed (shortcut) identity and for a registry-only identity: show, show again with the same tag (still exactly one delivered), a Reminder, an Urgent toast, and a withdraw that leaves none. For the claimed identity it also starts the toast's launch link through the shell, as a click does, and checks that the running instance receives the same payload. It exits 0 on success, 1 on a failure and 2 when the machine cannot show toasts.
+
+Manual check for a person (a script cannot click): run `ToastSample.exe`, minimise the window, click the toast, and watch the window come forward with the payload logged. Then run `ToastSample.exe --clean` to remove the shortcut, the scheme key, the AppUserModelId key and the toasts.
+
 ## Desktop appearance
 
 Opt-in: nothing here changes how your app draws unless you ask. `DesktopAccent` and `DesktopAppearance` read what
