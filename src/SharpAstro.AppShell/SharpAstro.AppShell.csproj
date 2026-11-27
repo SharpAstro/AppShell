@@ -34,6 +34,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SharpAstro.AppShell.Tests" />
+    <!-- The sample reads back the shortcut and registry keys it wrote, to clean up only its own. -->
+    <InternalsVisibleTo Include="ToastSample" />
   </ItemGroup>
 
   <ItemGroup>
