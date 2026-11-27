@@ -281,17 +281,9 @@ internal static unsafe class Sample
         Log($"self-test: identity 1 is the claimed app id '{Program.AppId}' (Start menu shortcut, {_claimResult})");
         Log($"self-test: identity 2 is '{Program.HeadlessAppId}', given only by AppIdentity.Register: {AppIdentity.Register(Program.HeadlessAppId, Program.DisplayName + " (headless)")} (registry key, no shortcut)");
 
-        if (!RunIdentity("claimed", null, created))
-        {
-            Finish();
-            return;
-        }
-
-        if (!RunIdentity("registry", Program.HeadlessAppId, false))
-        {
-            Finish();
-            return;
-        }
+        // both identities always run, so one that cannot show toasts does not hide what the other does
+        RunIdentity("claimed", null, created);
+        RunIdentity("registry", Program.HeadlessAppId, false);
 
         // the click: the shell resolves the scheme as a click on the toast does, and starts a second copy of this exe
         _clickPayload = "self-test-" + Guid.NewGuid().ToString("N")[..8];
