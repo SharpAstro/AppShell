@@ -187,7 +187,8 @@ internal static unsafe partial class WinRtToast
 
         if (hr < 0)
         {
-            refusal = hr == ErrorNotFound ? NotRegistered(appId, call, hr) : DesktopNotificationResult.Failed(Describe(call, hr));
+            refusal = hr == ErrorNotFound ? NotFound(appId, call, hr, ReferenceNotFound(refs, statics))
+                : DesktopNotificationResult.Failed(Describe(call, hr));
             return 0;
         }
 
@@ -198,7 +199,7 @@ internal static unsafe partial class WinRtToast
         if (hr < 0)
         {
             refusal = hr == ErrorNotFound
-                ? NotRegistered(appId, "IToastNotifier.get_Setting", hr)
+                ? NotFound(appId, "IToastNotifier.get_Setting", hr, ReferenceNotFound(refs, statics))
                 : DesktopNotificationResult.Failed(Describe("IToastNotifier.get_Setting", hr));
             return 0;
         }
@@ -214,9 +215,38 @@ internal static unsafe partial class WinRtToast
         return notifier;
     }
 
-    private static DesktopNotificationResult NotRegistered(string? appId, string call, int hr) =>
-        DesktopNotificationResult.NoIdentity(
-            $"the app id {(appId is null ? "of this process" : $"'{appId}'")} is not known to Windows' notification platform in this session ({Describe(call, hr)}). Either no Start menu shortcut and no registry key carries it, or the platform cannot serve this session at all (in a remote desktop session it answers the same for every app id, Windows' own included).");
+    /// <summary>An app id every Windows desktop registers through its Start menu shortcut (Windows PowerShell's).
+    /// Asked about only when the app's own id was answered with ERROR_NOT_FOUND, to tell which of two things that
+    /// answer means.</summary>
+    internal const string ReferenceAppId = @"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe";
+
+    // True when Windows answers ERROR_NOT_FOUND for the reference app id as well: then the session has no toast
+    // delivery at all (remote desktop, no interactive desktop), and the app's own registration is not the cause.
+    private static bool ReferenceNotFound(Refs refs, nint statics)
+    {
+        nint notifier;
+        var hr = ((delegate* unmanaged[Stdcall]<nint, nint, nint*, int>)Slot(statics, 7))(statics, refs.HString(ReferenceAppId), &notifier);
+        if (hr < 0)
+        {
+            return hr == ErrorNotFound;
+        }
+
+        refs.Own(notifier);
+        int setting;
+        return ((delegate* unmanaged[Stdcall]<nint, int*, int>)Slot(notifier, 8))(notifier, &setting) == ErrorNotFound;
+    }
+
+    /// <summary>What ERROR_NOT_FOUND from <paramref name="call"/> means: no toast delivery in this session when the
+    /// reference app id is refused the same way, otherwise an app id that nothing registers. Pure, for tests.</summary>
+    internal static DesktopNotificationResult NotFound(string? appId, string call, int hr, bool referenceAlsoNotFound)
+    {
+        var id = appId is null ? "of this process" : $"'{appId}'";
+        return referenceAlsoNotFound
+            ? DesktopNotificationResult.SessionUnavailable(
+                $"toasts unavailable in this session (0x{hr:X8}, ERROR_NOT_FOUND), RDP or no interactive desktop: {Describe(call, hr)} for the app id {id}, and Windows refuses its own reference app id the same way")
+            : DesktopNotificationResult.NoIdentity(
+                $"the app id {id} is registered nowhere (no Start menu shortcut and no registry key carries it): {Describe(call, hr)}, while Windows knows its own reference app id");
+    }
 
     private static nint Build(Refs refs, string xml, string? tag, string? group)
     {
