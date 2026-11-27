@@ -280,8 +280,12 @@ public sealed class InstanceGate : IDisposable
     /// Whether it is CERTAIN that nothing holds <paramref name="channel"/> -- false means "held, or
     /// cannot tell", so a caller still has to try. A probe only: it claims nothing and connects to
     /// nothing, so a holder sees no hand-off. A consumer asking "is X running" reads
-    /// <c>!IsKnownAbsent</c> as "held, or cannot tell".
+    /// <c>!IsKnownAbsent</c> as "held, or cannot tell". Off Windows, and for a name that could not be
+    /// a file name, the answer is always false ("cannot tell").
     /// </summary>
+    /// <param name="channel">A channel name as produced by <see cref="ChannelFor"/>.</param>
+    /// <returns>True only when it is certain nothing holds the channel.</returns>
+    /// <exception cref="ArgumentException"><paramref name="channel"/> is null, empty or whitespace.</exception>
     /// <remarks>
     /// <para><b>Why an existence check exists at all.</b>
     /// <see cref="NamedPipeClientStream.Connect(int)"/> does not distinguish "no holder" from "the

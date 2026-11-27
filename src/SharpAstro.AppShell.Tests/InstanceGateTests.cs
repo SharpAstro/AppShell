@@ -59,9 +59,16 @@ public class InstanceGateTests
 
         var gate = InstanceGate.TryClaim(channel);
         gate.ShouldNotBeNull();
-        InstanceGate.IsKnownAbsent(channel).ShouldBeFalse();
+        try
+        {
+            InstanceGate.IsKnownAbsent(channel).ShouldBeFalse();
+        }
+        finally
+        {
+            // Released even when the assertion above fails, so the gate never leaks.
+            gate.Dispose();
+        }
 
-        gate.Dispose();
         InstanceGate.IsKnownAbsent(channel).ShouldBe(OperatingSystem.IsWindows());
     }
 
