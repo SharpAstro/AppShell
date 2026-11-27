@@ -49,7 +49,7 @@ internal static unsafe class Sample
     private static HwndWindow? _window;
 
     // self-test state
-    private static bool _selfTest, _failed, _cannot;
+    private static bool _selfTest, _failed, _cannot, _noSession;
     private static string? _clickPayload;
     private static long _deadline;
     private static int _exitCode = -1;
@@ -252,8 +252,15 @@ internal static unsafe class Sample
     private static void Finish()
     {
         Win32.KillTimer(_hwnd, 1);
-        _exitCode = _cannot ? 2 : _failed ? 1 : 0;
-        Log(_exitCode == 0 ? "SELF-TEST PASSED" : _exitCode == 2 ? "SELF-TEST CANNOT RUN: this machine cannot show toasts" : "SELF-TEST FAILED");
+        // a real failure wins; then the session (nothing the app could change); then the app's own identity or setting
+        _exitCode = _failed ? 1 : _noSession ? 3 : _cannot ? 2 : 0;
+        Log(_exitCode switch
+        {
+            0 => "SELF-TEST PASSED",
+            1 => "SELF-TEST FAILED",
+            3 => "SELF-TEST PARTIAL (exit 3): toasts unavailable in this session (0x80070490), RDP or no interactive desktop; toast display not proven, the rest passed",
+            _ => "SELF-TEST CANNOT RUN (exit 2): this app id cannot show toasts here (no identity, or turned off)",
+        });
         Win32.DestroyWindow(_hwnd);
     }
 
@@ -311,6 +318,13 @@ internal static unsafe class Sample
             new() { Tag = tag, Group = Program.Group, AppId = appId, Urgency = urgency, LaunchPayload = payload, Scheme = payload is null ? null : Program.Scheme };
 
         var probe = DesktopNotification.Probe(appId);
+        if (probe.Status is DesktopNotificationStatus.SessionUnavailable)
+        {
+            Log($"NO DELIVERY {label}: {probe.Reason}");
+            _noSession = true;
+            return false;
+        }
+
         if (probe.Status is DesktopNotificationStatus.NoIdentity or DesktopNotificationStatus.Disabled)
         {
             Log($"CANNOT {label}: toasts are not available ({probe.Status}): {probe.Reason}");
@@ -324,6 +338,13 @@ internal static unsafe class Sample
         }
 
         var shown = DesktopNotification.Show($"Toast sample ({label})", "Normal toast A", Options(tagA, ToastUrgency.Normal, label == "claimed" ? "self-test-toast" : null));
+        if (shown.Status is DesktopNotificationStatus.SessionUnavailable)
+        {
+            Log($"NO DELIVERY {label}: Show answered {shown.Reason}");
+            _noSession = true;
+            return false;
+        }
+
         if (shown.Status is DesktopNotificationStatus.NoIdentity or DesktopNotificationStatus.Disabled)
         {
             Log($"CANNOT {label}: Show answered {shown.Status}: {shown.Reason}");
@@ -361,7 +382,7 @@ internal static unsafe class Sample
     {
         var r = DesktopNotification.Probe(appId);
         Log($"probe '{appId ?? "(claimed)"}': {r.Status} {r.Reason}");
-        return r.IsSuccess ? 0 : 2;
+        return r.IsSuccess ? 0 : r.Status == DesktopNotificationStatus.SessionUnavailable ? 3 : 2;
     }
 
     // ---- --clean ---------------------------------------------------------------------------------------------------

@@ -133,7 +133,10 @@ dismisses it, with the system's own Dismiss button. `Urgent` is a reminder that 
 Disturb when the person allows that for the app, so keep it for the most serious level.
 
 Every call returns one `DesktopNotificationResult`: a `Status` (`Succeeded`, `NoIdentity`, `Disabled`,
-`Unsupported`, `Failed`) and a `Reason` that names the failing call and its HRESULT. Nothing throws for the system;
+`Unsupported`, `Failed`, `SessionUnavailable`) and a `Reason` that names the failing call and its HRESULT.
+`SessionUnavailable` is a session with no toast delivery (remote desktop, no interactive desktop): Windows answers
+ERROR_NOT_FOUND (0x80070490) there for a stock app id as well as the app's own, which is how it is told apart from an
+app id nothing registers (`NoIdentity`). Nothing throws for the system;
 only a wrong argument (a blank title, a tag without a group) throws `ArgumentException`. `Probe()` says whether a toast
 would show without showing one, and `DesktopNotification.LogOnce(log)` (or an `ILogger`) says once why toasts are
 unavailable and nothing when they are. Off Windows every call returns `Unsupported` for now.
@@ -205,7 +208,7 @@ samples\ToastSamplein\Release
 et10.0\win-x64\publish\ToastSample.exe --self-test
 ```
 
-`--self-test` runs, for the claimed (shortcut) identity and for a registry-only identity: show, show again with the same tag (still exactly one delivered), a Reminder, an Urgent toast, and a withdraw that leaves none. For the claimed identity it also starts the toast's launch link through the shell, as a click does, and checks that the running instance receives the same payload. It exits 0 on success, 1 on a failure and 2 when the machine cannot show toasts.
+`--self-test` runs, for the claimed (shortcut) identity and for a registry-only identity: show, show again with the same tag (still exactly one delivered), a Reminder, an Urgent toast, and a withdraw that leaves none. For the claimed identity it also starts the toast's launch link through the shell, as a click does, and checks that the running instance receives the same payload. It exits 0 on success, 1 on a failure, 2 when the app id cannot show toasts (no identity, or toasts turned off for it), and 3 when the session has no toast delivery at all: Windows answers ERROR_NOT_FOUND (0x80070490) for every app id, its own included, in a remote desktop session or one with no interactive desktop. `DesktopNotification` reports that last case as `DesktopNotificationStatus.SessionUnavailable`. Exit 3 means toast display was not proven, so run the self-test at the machine's console to prove it.
 
 Manual check for a person (a script cannot click): run `ToastSample.exe`, minimise the window, click the toast, and watch the window come forward with the payload logged. Then run `ToastSample.exe --clean` to remove the shortcut, the scheme key, the AppUserModelId key and the toasts.
 
