@@ -3,4 +3,7 @@
     <Project Path="src/SharpAstro.AppShell/SharpAstro.AppShell.csproj" />
     <Project Path="src/SharpAstro.AppShell.Tests/SharpAstro.AppShell.Tests.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ToastSample/ToastSample.csproj" />
+  </Folder>
 </Solution>

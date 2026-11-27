@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Plain net10.0, not -windows: every Windows call is guarded by OperatingSystem.IsWindows(), so CI's Linux
+         build compiles this and the program prints that it is Windows-only. WinExe so that a launch through the
+         toast's URL scheme opens no console window; the window and the log file show what the sample does.
+         IlcTreatWarningsAsErrors follows TreatWarningsAsErrors in Microsoft.NETCore.Native.targets, so an
+         IL2xxx or IL3xxx warning fails the publish. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ToastSample</RootNamespace>
+    <AssemblyName>ToastSample</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/SharpAstro.AppShell/SharpAstro.AppShell.csproj" />
+  </ItemGroup>
+
+</Project>
