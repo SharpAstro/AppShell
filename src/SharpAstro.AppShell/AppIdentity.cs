@@ -31,6 +31,25 @@ public enum StartMenuShortcut
     Packaged,
 }
 
+/// <summary>What <see cref="AppIdentity.Register(string, string, string?)"/> did at the app id's registry key.</summary>
+public enum AppUserModelRegistration
+{
+    /// <summary>Nothing was done: not Windows.</summary>
+    None,
+
+    /// <summary>The key was there already with these values; nothing was written.</summary>
+    Present,
+
+    /// <summary>The key or a value of it was missing or different and was written.</summary>
+    Written,
+
+    /// <summary>The registry could not be read or written.</summary>
+    Failed,
+
+    /// <summary>Nothing was done: the process runs from an app package, whose manifest names it.</summary>
+    Packaged,
+}
+
 /// <summary>
 /// Who the app is to the Windows shell: the app id (an AppUserModelID) its windows and its media session carry,
 /// and the Start menu shortcut that gives that id a name and an icon.
@@ -110,6 +129,84 @@ public static partial class AppIdentity
 
         return shortcut;
     }
+
+    /// <summary>
+    /// The second way to an app identity, for a process with no Start menu shortcut and no windows (a headless node): writes
+    /// <c>HKCU\Software\Classes\AppUserModelId\&lt;appId&gt;</c> with a <c>DisplayName</c>, and an <c>IconUri</c> when
+    /// <paramref name="iconPath"/> is given, which is all Windows needs to show a toast under that id. It sets no app id on the
+    /// process and writes no shortcut; <see cref="DesktopNotification"/> shows its toasts under the id it registered.
+    /// Idempotent: only a value that is missing or differs is written. In a package, and off Windows, it does nothing.
+    /// </summary>
+    /// <param name="appId">A string of the form <c>Company.Product</c>, as for <see cref="Claim(string, string)"/>.</param>
+    /// <param name="displayName">The name the toast is shown under.</param>
+    /// <param name="iconPath">An image file (<c>.png</c> or <c>.ico</c>) for the toast's icon, or null for none. The shell
+    /// reads <c>IconUri</c> as an image: an <c>.exe</c> there leaves the default icon.</param>
+    /// <returns>What was done; never throws for the registry.</returns>
+    public static AppUserModelRegistration Register(string appId, string displayName, string? iconPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        if (!OperatingSystem.IsWindows())
+        {
+            return AppUserModelRegistration.None;
+        }
+
+        var result = Register(appId, displayName, iconPath, new UserRegistry(), packaged: null);
+        if (result is AppUserModelRegistration.Present or AppUserModelRegistration.Written)
+        {
+            RegisteredAppId = appId;
+        }
+
+        return result;
+    }
+
+    /// <summary>The body of <see cref="Register(string, string, string?)"/> with the registry and the package check as
+    /// parameters. Packaged is checked first, as <see cref="Claim(string, string)"/> does.</summary>
+    internal static AppUserModelRegistration Register(string appId, string displayName, string? iconPath, IUserRegistry registry, bool? packaged)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        if (packaged ?? IsPackaged)
+        {
+            return AppUserModelRegistration.Packaged;
+        }
+
+        try
+        {
+            var wrote = false;
+            foreach (var (subKey, name, value) in AppIdValues(appId, displayName, iconPath))
+            {
+                if (registry.Read(subKey, name) != value)
+                {
+                    registry.Write(subKey, name, value);
+                    wrote = true;
+                }
+            }
+
+            return wrote ? AppUserModelRegistration.Written : AppUserModelRegistration.Present;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return AppUserModelRegistration.Failed;
+        }
+    }
+
+    /// <summary>What the registry identity holds: (key, value name, value); the icon only when one is given. Pure.</summary>
+    internal static IReadOnlyList<(string SubKey, string Name, string Value)> AppIdValues(string appId, string displayName, string? iconPath)
+    {
+        var key = @"Software\Classes\AppUserModelId\" + appId;
+        var values = new List<(string, string, string)> { (key, "DisplayName", displayName) };
+        if (!string.IsNullOrEmpty(iconPath))
+        {
+            values.Add((key, "IconUri", iconPath));
+        }
+
+        return values;
+    }
+
+    /// <summary>The app id of a successful <see cref="Register(string, string, string?)"/>, or null.
+    /// <see cref="DesktopNotification"/> resolves it after the claimed one.</summary>
+    internal static string? RegisteredAppId { get; private set; }
 
     /// <summary>The app id of a <see cref="Claim(string, string)"/> that the shell can name the app from
     /// (<see cref="StartMenuShortcut.Present"/>, <see cref="StartMenuShortcut.Created"/> or

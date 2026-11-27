@@ -11,27 +11,47 @@ public class DesktopNotificationTests
 {
     [Fact]
     public void The_asked_for_app_id_wins()
-        => DesktopNotification.ResolveIdentity("Asked", "Claimed", "Explicit", packaged: true).ShouldBe(("Asked", null));
+        => DesktopNotification.ResolveIdentity("Asked", "Claimed", "Registered", "Explicit", packaged: true).ShouldBe(("Asked", null));
 
     [Fact]
-    public void The_claimed_id_comes_before_the_explicit_one()
-        => DesktopNotification.ResolveIdentity(null, "Claimed", "Explicit", packaged: true).ShouldBe(("Claimed", null));
+    public void The_claimed_id_comes_before_the_registered_one()
+        => DesktopNotification.ResolveIdentity(null, "Claimed", "Registered", "Explicit", packaged: true).ShouldBe(("Claimed", null));
+
+    [Fact]
+    public void The_registered_id_comes_after_the_claimed_one_and_before_the_explicit_one()
+    {
+        DesktopNotification.ResolveIdentity(null, null, "Registered", "Explicit", packaged: true).ShouldBe(("Registered", null));
+        DesktopNotification.ResolveIdentity(null, " ", "Registered", null, packaged: false).ShouldBe(("Registered", null));
+    }
 
     [Fact]
     public void The_explicit_id_comes_before_the_default_notifier()
-        => DesktopNotification.ResolveIdentity(" ", "", "Explicit", packaged: true).ShouldBe(("Explicit", null));
+        => DesktopNotification.ResolveIdentity(" ", "", null, "Explicit", packaged: true).ShouldBe(("Explicit", null));
 
     [Fact]
     public void A_packaged_process_with_no_id_uses_the_default_notifier()
-        => DesktopNotification.ResolveIdentity(null, null, null, packaged: true).ShouldBe((null, null));
+        => DesktopNotification.ResolveIdentity(null, null, null, null, packaged: true).ShouldBe((null, null));
 
     [Fact]
     public void With_nothing_the_reason_names_Claim()
     {
-        var (id, reason) = DesktopNotification.ResolveIdentity(null, null, null, packaged: false);
+        var (id, reason) = DesktopNotification.ResolveIdentity(null, null, null, null, packaged: false);
         id.ShouldBeNull();
         reason.ShouldNotBeNull().ShouldContain("AppIdentity.Claim");
     }
+
+    [Fact]
+    public void A_launch_payload_with_no_scheme_throws()
+        => Should.Throw<ArgumentException>(() => DesktopNotification.Show("t", null, new DesktopNotificationOptions { LaunchPayload = "job-1" }));
+
+    [Theory]
+    [InlineData("Bad")]
+    [InlineData("1abc")]
+    [InlineData("https")]
+    [InlineData("ms-settings")]
+    public void A_launch_payload_with_a_bad_scheme_throws(string scheme)
+        => Should.Throw<ArgumentException>(() => DesktopNotification.Show("t", null,
+            new DesktopNotificationOptions { LaunchPayload = "x", Scheme = scheme }));
 
     [Theory]
     [InlineData(null)]

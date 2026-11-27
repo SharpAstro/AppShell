@@ -103,6 +103,17 @@ public sealed record DesktopNotificationOptions
     /// <summary>The app id to show the toast under, in place of the one <see cref="AppIdentity.Claim(string, string)"/>
     /// gave the process. It must be one that a Start menu shortcut or a registry key registers.</summary>
     public string? AppId { get; init; }
+
+    /// <summary>What a click on the toast hands to the app: an id to look up. With it the toast carries
+    /// <c>activationType="protocol"</c> and a <see cref="LaunchScheme.Link"/> of it, which starts the app (or reaches the
+    /// running instance through <see cref="InstanceGate"/>). Needs a scheme: <see cref="LaunchScheme"/> here, or the one
+    /// <see cref="LaunchScheme.Register(string, string, string)"/> registered. Without it the toast carries no launch.
+    /// Untrusted input when it comes back: see <see cref="LaunchScheme"/>.</summary>
+    public string? LaunchPayload { get; init; }
+
+    /// <summary>The scheme of the launch link, in place of the one <see cref="LaunchScheme.Register(string, string, string)"/>
+    /// registered in this process.</summary>
+    public string? Scheme { get; init; }
 }
 
 /// <summary>
@@ -113,7 +124,8 @@ public sealed record DesktopNotificationOptions
 /// <para><b>The toast's name and icon come from the app id.</b> Windows shows a toast under an app, so it needs an
 /// app id that something registers. Call <see cref="AppIdentity.Claim(string, string)"/> at startup: the id it gave
 /// the process, with its Start menu shortcut, is what a toast is shown under. The identity is resolved in this
-/// order: <see cref="DesktopNotificationOptions.AppId"/>, the id of a successful Claim, the process's own explicit
+/// order: <see cref="DesktopNotificationOptions.AppId"/>, the id of a successful Claim, the id of an
+/// <see cref="AppIdentity.Register(string, string, string?)"/> (for a process with no shortcut), the process's own explicit
 /// app id, then (for a packaged process) the default notifier, whose manifest names the app. With none of these a
 /// call returns <see cref="DesktopNotificationStatus.NoIdentity"/>.</para>
 ///
@@ -162,6 +174,18 @@ public static class DesktopNotification
             ArgumentException.ThrowIfNullOrWhiteSpace(options.Group, nameof(options));
         }
 
+        string? link = null;
+        if (options.LaunchPayload is { } payload)
+        {
+            var scheme = options.Scheme ?? LaunchScheme.RegisteredScheme
+                ?? throw new ArgumentException("a launch payload needs a scheme: register one with LaunchScheme.Register or name it in the options", nameof(options));
+            link = LaunchScheme.Link(scheme, payload);
+        }
+        else if (options.Scheme is not null)
+        {
+            LaunchScheme.ThrowIfBad(options.Scheme, nameof(options));
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return DesktopNotificationResult.Unsupported();
@@ -170,7 +194,7 @@ public static class DesktopNotification
         var identity = CurrentIdentity(options.AppId);
         return identity.Reason is { } why
             ? DesktopNotificationResult.NoIdentity(why)
-            : WinRtToast.Show(identity.AppId, ToastXml.Build(title, body, options.Urgency),
+            : WinRtToast.Show(identity.AppId, ToastXml.Build(title, body, options.Urgency, link),
                 options.Tag is null ? null : ToastXml.TagOf(options.Tag),
                 options.Group is null ? null : ToastXml.TagOf(options.Group));
     }
@@ -260,16 +284,17 @@ public static class DesktopNotification
 
     // The identity this process shows toasts under, read from what Claim recorded and what the process carries.
     private static (string? AppId, string? Reason) CurrentIdentity(string? requested) =>
-        ResolveIdentity(requested, AppIdentity.ClaimedAppId, AppIdentity.ExplicitAppId(), AppIdentity.ClaimedPackaged || AppIdentity.IsPackaged);
+        ResolveIdentity(requested, AppIdentity.ClaimedAppId, AppIdentity.RegisteredAppId, AppIdentity.ExplicitAppId(), AppIdentity.ClaimedPackaged || AppIdentity.IsPackaged);
 
     /// <summary>
     /// Which app id a toast is shown under, in order: the one asked for, the one a successful
-    /// <see cref="AppIdentity.Claim(string, string)"/> gave, the process's own explicit app id, and, for a packaged
+    /// <see cref="AppIdentity.Claim(string, string)"/> gave, the one <see cref="AppIdentity.Register(string, string, string?)"/>
+    /// registered, the process's own explicit app id, and, for a packaged
     /// process, none (the default notifier, which the package's manifest names). Pure.
     /// </summary>
     /// <returns>The app id (null for the default notifier) with a null reason, or a null id and the reason there is
     /// none.</returns>
-    internal static (string? AppId, string? Reason) ResolveIdentity(string? requested, string? claimed, string? explicitId, bool packaged)
+    internal static (string? AppId, string? Reason) ResolveIdentity(string? requested, string? claimed, string? registered, string? explicitId, bool packaged)
     {
         if (!string.IsNullOrWhiteSpace(requested))
         {
@@ -279,6 +304,11 @@ public static class DesktopNotification
         if (!string.IsNullOrWhiteSpace(claimed))
         {
             return (claimed, null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(registered))
+        {
+            return (registered, null);
         }
 
         if (!string.IsNullOrWhiteSpace(explicitId))

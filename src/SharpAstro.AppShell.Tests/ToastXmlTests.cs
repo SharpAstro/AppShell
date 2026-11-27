@@ -27,6 +27,34 @@ public class ToastXmlTests
         doc.SelectSingleNode("/toast/actions").ShouldBeNull();
     }
 
+    [Fact]
+    public void A_launch_link_sets_protocol_activation_and_is_escaped()
+    {
+        var link = "viewer:a%20b&c\"<d>'";
+        var doc = Load(ToastXml.Build("Done", null, ToastUrgency.Normal, link));
+        doc.DocumentElement!.GetAttribute("activationType").ShouldBe("protocol");
+        doc.DocumentElement.GetAttribute("launch").ShouldBe(link);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void No_launch_link_leaves_the_toast_without_activation(string? link)
+    {
+        var doc = Load(ToastXml.Build("Done", null, ToastUrgency.Normal, link));
+        doc.DocumentElement!.HasAttribute("launch").ShouldBeFalse();
+        doc.DocumentElement.HasAttribute("activationType").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_launch_link_goes_with_a_reminder_and_its_dismiss_action()
+    {
+        var doc = Load(ToastXml.Build("T", "B", ToastUrgency.Reminder, "viewer:x"));
+        doc.DocumentElement!.GetAttribute("launch").ShouldBe("viewer:x");
+        doc.DocumentElement.GetAttribute("scenario").ShouldBe("reminder");
+        doc.SelectSingleNode("/toast/actions/action")!.Attributes!["arguments"]!.Value.ShouldBe("dismiss");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

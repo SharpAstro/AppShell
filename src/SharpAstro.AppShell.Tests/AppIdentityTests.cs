@@ -16,6 +16,67 @@ public class AppIdentityTests
 {
     private const string AppId = "SharpAstro.AppShell.Tests";
 
+    private const string AumidKey = @"Software\Classes\AppUserModelId\" + AppId;
+
+    [Fact]
+    public void Register_writes_the_display_name_and_no_icon_when_none_is_given()
+    {
+        var registry = new FakeRegistry();
+        AppIdentity.Register(AppId, "Viewer", null, registry, packaged: false).ShouldBe(AppUserModelRegistration.Written);
+        registry.Values.ShouldBe(new Dictionary<(string, string), string> { [(AumidKey, "DisplayName")] = "Viewer" });
+    }
+
+    [Fact]
+    public void Register_writes_the_icon_only_when_given()
+    {
+        var registry = new FakeRegistry();
+        AppIdentity.Register(AppId, "Viewer", @"C:\Apps\viewer.png", registry, packaged: false).ShouldBe(AppUserModelRegistration.Written);
+        registry.Values[(AumidKey, "IconUri")].ShouldBe(@"C:\Apps\viewer.png");
+        registry.Values[(AumidKey, "DisplayName")].ShouldBe("Viewer");
+    }
+
+    [Fact]
+    public void Register_writes_only_what_differs()
+    {
+        var registry = new FakeRegistry();
+        AppIdentity.Register(AppId, "Viewer", @"C:\a.png", registry, packaged: false);
+        var writes = registry.Writes;
+        AppIdentity.Register(AppId, "Viewer", @"C:\a.png", registry, packaged: false).ShouldBe(AppUserModelRegistration.Present);
+        registry.Writes.ShouldBe(writes);
+
+        AppIdentity.Register(AppId, "Viewer", @"C:\b.png", registry, packaged: false).ShouldBe(AppUserModelRegistration.Written);
+        registry.Writes.ShouldBe(writes + 1);
+        registry.Values[(AumidKey, "IconUri")].ShouldBe(@"C:\b.png");
+    }
+
+    [Fact]
+    public void Register_in_a_package_writes_nothing()
+    {
+        var registry = new FakeRegistry();
+        AppIdentity.Register(AppId, "Viewer", null, registry, packaged: true).ShouldBe(AppUserModelRegistration.Packaged);
+        registry.Writes.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Register_that_the_registry_refuses_is_a_result()
+        => AppIdentity.Register(AppId, "Viewer", null, new RefusingRegistry(), packaged: false).ShouldBe(AppUserModelRegistration.Failed);
+
+    [Theory]
+    [InlineData("", "n")]
+    [InlineData(" ", "n")]
+    [InlineData("id", "")]
+    public void Register_validates_its_arguments(string appId, string name)
+        => Should.Throw<ArgumentException>(() => AppIdentity.Register(appId, name));
+
+    private sealed class RefusingRegistry : IUserRegistry
+    {
+        public string? Read(string subKey, string name) => null;
+
+        public void Write(string subKey, string name, string value) => throw new UnauthorizedAccessException();
+
+        public void DeleteTree(string subKey) => throw new UnauthorizedAccessException();
+    }
+
     [Fact]
     public void No_shortcut_is_created()
         => Decide(null, AppId, _ => true).ShouldBe(ShortcutAction.Create);

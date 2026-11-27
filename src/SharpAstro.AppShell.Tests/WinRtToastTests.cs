@@ -29,6 +29,22 @@ public class WinRtToastTests
     }
 
     [Fact]
+    public void A_toast_with_a_launch_link_loads_and_reads_back()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var link = LaunchScheme.Link("viewer", "job & <1> \"x\" Grüße 😀");
+        var xml = ToastXml.Build("Build finished", "3 files", ToastUrgency.Normal, link);
+        var (result, tag, group) = WinRtToast.BuildAndReadBack(xml, "tag-1", "group-1");
+        result.Status.ShouldBe(DesktopNotificationStatus.Succeeded, result.Reason);
+        tag.ShouldBe("tag-1");
+        group.ShouldBe("group-1");
+    }
+
+    [Fact]
     public void Hostile_text_and_a_long_tag_still_build_and_read_back()
     {
         if (!OperatingSystem.IsWindows())
