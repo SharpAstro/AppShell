@@ -52,6 +52,7 @@ internal static unsafe class Sample
     private static string? _clickPayload;
     private static long _deadline;
     private static int _exitCode = -1;
+    private static StartMenuShortcut _claimResult;
 
     /// <summary>Every step goes to the window, to stdout and to a log file beside the exe.</summary>
     public static void Log(string line)
@@ -92,7 +93,8 @@ internal static unsafe class Sample
     public static int Window(bool selfTest, string? arg)
     {
         _selfTest = selfTest;
-        Log($"claim: {AppIdentity.Claim(Program.AppId, Program.DisplayName)} (shortcut '{Program.DisplayName}.lnk')");
+        _claimResult = AppIdentity.Claim(Program.AppId, Program.DisplayName);
+        Log($"claim: {_claimResult} (shortcut '{Program.DisplayName}.lnk')");
         Log($"scheme: {LaunchScheme.Register(Program.Scheme, Program.AppId, Program.DisplayName)} ({Program.Scheme}:)");
         var channel = InstanceGate.ChannelFor("toast-sample");
         _gate = InstanceGate.TryClaim(channel);
@@ -275,9 +277,8 @@ internal static unsafe class Sample
 
     private static void SelfTest()
     {
-        var shortcut = AppIdentity.Claim(Program.AppId, Program.DisplayName); // idempotent: says what the shortcut is now
-        var created = shortcut == StartMenuShortcut.Created;
-        Log($"self-test: identity 1 is the claimed app id '{Program.AppId}' (Start menu shortcut, {shortcut})");
+        var created = _claimResult == StartMenuShortcut.Created;
+        Log($"self-test: identity 1 is the claimed app id '{Program.AppId}' (Start menu shortcut, {_claimResult})");
         Log($"self-test: identity 2 is '{Program.HeadlessAppId}', given only by AppIdentity.Register: {AppIdentity.Register(Program.HeadlessAppId, Program.DisplayName + " (headless)")} (registry key, no shortcut)");
 
         if (!RunIdentity("claimed", null, created))
@@ -320,6 +321,11 @@ internal static unsafe class Sample
         if (probe.Status is DesktopNotificationStatus.NoIdentity or DesktopNotificationStatus.Disabled)
         {
             Log($"CANNOT {label}: toasts are not available ({probe.Status}): {probe.Reason}");
+            if (shortcutJustCreated)
+            {
+                Log($"NOTE {label}: the shortcut was created by this very run; the shell may not know the app id yet. Not retried here: run --self-test again.");
+            }
+
             _cannot = true;
             return false;
         }
