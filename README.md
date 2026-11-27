@@ -52,6 +52,9 @@ while (gate?.TryDequeue(out var request) == true)
 }
 ```
 
+To ask "is that instance running?" without claiming or connecting (a holder sees no hand-off), probe:
+`!InstanceGate.IsKnownAbsent(channel)` means held, or cannot tell (always so off Windows).
+
 `NormalizePathIdentity` is what makes the per-folder mode work: it folds a trailing separator, a
 relative path and (on Windows and macOS only) a difference in case into one identity, so `C:\Data`
 and `c:\data\` do not open two windows onto the same folder.
