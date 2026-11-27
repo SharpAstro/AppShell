@@ -25,8 +25,9 @@ public enum DesktopNotificationStatus
     Succeeded,
 
     /// <summary>Windows has no name for the app to show the toast under: <see cref="AppIdentity.Claim(string, string)"/>
-    /// was not called (or the shell could not name the app from it) and no app id was given, or the app id is
-    /// registered nowhere.</summary>
+    /// was not called (or the shell could not name the app from it) and no app id was given, or Windows' notification
+    /// platform does not know the app id in this session (Windows answers 0x80070490 alike when nothing registers
+    /// it and when the platform cannot serve the session, as in a remote desktop session).</summary>
     NoIdentity,
 
     /// <summary>Windows is set not to show this app's toasts (turned off for the app or the person, by group

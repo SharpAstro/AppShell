@@ -99,7 +99,7 @@ public class WinRtToastTests
 
         var result = WinRtToast.ReadSetting("SharpAstro.AppShell.Tests." + Guid.NewGuid().ToString("N"));
         result.Status.ShouldBe(DesktopNotificationStatus.NoIdentity, result.Reason);
-        result.Reason.ShouldNotBeNull().ShouldContain("registered nowhere");
+        result.Reason.ShouldNotBeNull().ShouldContain("not known to Windows' notification platform");
         result.Reason.ShouldContain("0x80070490");
     }
 }

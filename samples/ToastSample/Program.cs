@@ -140,7 +140,7 @@ internal static unsafe class Sample
 
                 var r = DesktopNotification.Show("AppShell toast sample", "Minimise or cover this window, then click this toast.",
                     new DesktopNotificationOptions { Tag = "sample", Group = Program.Group, LaunchPayload = "hello-from-toast", Scheme = Program.Scheme });
-                Log($"toast shown: {r.Status} {r.Reason}");
+                Log($"toast under '{Program.AppId}' (Start menu shortcut route, claim {_claimResult}): {r.Status} {r.Reason}");
             }
 
             while (_exitCode < 0 && Win32.GetMessage(out var msg, 0, 0, 0) > 0)
