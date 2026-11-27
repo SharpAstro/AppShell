@@ -28,7 +28,9 @@ Release notes live here rather than beside the version number: the number is one
   displayName, iconPath?)` writes the `HKCU\...\AppUserModelId\<appId>` key (an image file for the icon) for a process
   with no Start menu shortcut, and `DesktopNotification` resolves it after the claimed id; an app id with a
   backslash or a dot at either end is an `ArgumentException`. The `Shell_NotifyIcon`
-  fallback is left out: the registry identity covers a process without a shortcut. (AppShell#7.)
+  fallback is left out: the registry identity covers a process without a shortcut. An explicit options `AppId`
+  that nothing registers (no registry key, not the process's own, never shown a toast) answers `NoIdentity` naming it
+  as unregistered, rather than leaving Windows to fail later. (AppShell#7.)
 
 ## 1.6
 

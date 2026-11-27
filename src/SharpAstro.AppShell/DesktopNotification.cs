@@ -103,8 +103,9 @@ public sealed record DesktopNotificationOptions
 
     /// <summary>The app id to show the toast under, in place of the one <see cref="AppIdentity.Claim(string, string)"/>
     /// gave the process. It must be one that a registry key registers
-    /// (<see cref="AppIdentity.Register(string, string, string?)"/>), the process's own, or one that has shown a toast before (a
-    /// Start menu shortcut's id does once it has); any other answers <see cref="DesktopNotificationStatus.NoIdentity"/>
+    /// (<see cref="AppIdentity.Register(string, string, string?)"/>), the process's own, or one that has shown a toast before.
+    /// A Start menu shortcut alone does not satisfy this: the check cannot see a shortcut, only that the id has shown a
+    /// toast (Windows keeps notification settings for it from then on); any other answers <see cref="DesktopNotificationStatus.NoIdentity"/>
     /// naming it as unregistered.</summary>
     public string? AppId { get; init; }
 
@@ -290,13 +291,17 @@ public static class DesktopNotification
     // The identity this process shows toasts under, read from what Claim recorded and what the process carries.
     // An asked-for app id that nothing registers is refused here, so Show and Probe tell it from one that has not shown a toast yet.
     private static (string? AppId, string? Reason) CurrentIdentity(string? requested)
+        => CurrentIdentity(requested, OperatingSystem.IsWindows() ? new UserRegistry() : null);
+
+    // The registry is a parameter so a test sees the wiring (and a registry that throws) without Windows; null skips the check.
+    internal static (string? AppId, string? Reason) CurrentIdentity(string? requested, IUserRegistry? registry)
     {
         var claimed = AppIdentity.ClaimedAppId;
         var registered = AppIdentity.RegisteredAppId;
         var explicitId = AppIdentity.ExplicitAppId();
         var packaged = AppIdentity.ClaimedPackaged || AppIdentity.IsPackaged;
-        if (OperatingSystem.IsWindows()
-            && UnregisteredReason(requested, claimed, registered, explicitId, packaged, new UserRegistry()) is { } unregistered)
+        if (registry is not null
+            && UnregisteredReason(requested, claimed, registered, explicitId, packaged, registry) is { } unregistered)
         {
             return (null, unregistered);
         }
@@ -307,9 +312,9 @@ public static class DesktopNotification
     /// <summary>
     /// Why an app id asked for (<see cref="DesktopNotificationOptions.AppId"/>) is refused: nothing registers it. It is
     /// known when it is this process's own (claimed, registered or explicit), when the current user has an
-    /// <c>AppUserModelId</c> key for it, or when Windows keeps notification settings for it (made on its first toast,
-    /// which covers an id a shortcut registered and that has shown a toast). An id that is registered but has not shown
-    /// a toast yet passes; one nothing registers is refused with a reason that says so. A packaged process is never
+    /// <c>AppUserModelId</c> key for it, or when Windows keeps notification settings for it (made on its first toast, so
+    /// an id a shortcut registered passes only once it has shown a toast: the shortcut itself is not looked for). An id that
+    /// is registered but has not shown a toast yet passes; one nothing registers is refused with a reason that says so. A packaged process is never
     /// refused. Pure over the registry, so a test needs no Windows.
     /// </summary>
     /// <returns>The reason, or null when the id is known or none was asked for.</returns>
@@ -335,7 +340,7 @@ public static class DesktopNotification
         }
 
         return $"nothing registers the app id '{requested}' for this user (no AppUserModelId registry key, and it has shown no toast before): "
-            + "register it with AppIdentity.Register or a Start menu shortcut first";
+            + "register it with AppIdentity.Register (a Start menu shortcut alone is not seen until the id has shown a toast)";
     }
 
     /// <summary>
