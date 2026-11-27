@@ -5,9 +5,9 @@ namespace SharpAstro.AppShell.Tests;
 
 /// <summary>
 /// The WinRT calls, proved in milliseconds with no toast shown: every XML the builder makes loads into a real
-/// XmlDocument and becomes a ToastNotification whose tag and group read back, and an app id nothing registers is
-/// refused when the notifier's setting is read, named as a missing registration or, where Windows refuses its own
-/// reference app id too (a remote desktop session), as a session without toast delivery. No registry is written and the Start menu is not touched. Windows only.
+/// XmlDocument and becomes a ToastNotification whose tag and group read back, and the notifier's setting read lets
+/// an app id that has never shown a toast through while a setting that turns toasts off is refused by name. No
+/// registry is written and the Start menu is not touched. Windows only.
 /// </summary>
 public class WinRtToastTests
 {
@@ -91,53 +91,72 @@ public class WinRtToastTests
     }
 
     [Fact]
-    public void An_app_id_nothing_registers_is_refused_when_its_setting_is_read()
+    public void An_app_id_that_has_never_shown_a_toast_is_not_refused_when_its_setting_is_read()
     {
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
-        // In an interactive session Windows knows the reference app id, so the refusal names the missing
-        // registration; in a remote desktop session it refuses every app id and the refusal names the session.
-        var reference = WinRtToast.ReadSetting(WinRtToast.ReferenceAppId);
+        // A fresh app id has no notification settings yet, so Windows answers the setting read with ERROR_NOT_FOUND
+        // in a console and a remote desktop session alike. Reading writes nothing.
         var result = WinRtToast.ReadSetting("SharpAstro.AppShell.Tests." + Guid.NewGuid().ToString("N"));
-        result.Status.ShouldBe(
-            reference.Status == DesktopNotificationStatus.SessionUnavailable
-                ? DesktopNotificationStatus.SessionUnavailable
-                : DesktopNotificationStatus.NoIdentity,
-            result.Reason);
-        result.Reason.ShouldNotBeNull().ShouldContain("0x80070490");
+
+        result.Status.ShouldBe(DesktopNotificationStatus.Succeeded, result.Reason);
     }
 
     [Fact]
-    public void Not_found_while_the_reference_app_id_is_known_names_the_missing_registration()
+    public void Not_found_from_the_setting_read_lets_the_toast_be_shown()
     {
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
-        var result = WinRtToast.NotFound("Some.App", "IToastNotifier.get_Setting", WinRtToast.ErrorNotFound, referenceAlsoNotFound: false);
-
-        result.Status.ShouldBe(DesktopNotificationStatus.NoIdentity);
-        result.Reason.ShouldNotBeNull().ShouldContain("'Some.App' is registered nowhere");
-        result.Reason.ShouldContain("0x80070490");
+        WinRtToast.SettingRefusal(WinRtToast.ErrorNotFound, setting: 0).ShouldBeNull();
     }
 
     [Fact]
-    public void Not_found_for_the_reference_app_id_too_is_a_session_without_toast_delivery()
+    public void An_enabled_setting_lets_the_toast_be_shown()
     {
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
-        var result = WinRtToast.NotFound("Some.App", "IToastNotifier.get_Setting", WinRtToast.ErrorNotFound, referenceAlsoNotFound: true);
+        WinRtToast.SettingRefusal(hr: 0, setting: 0).ShouldBeNull();
+    }
 
-        result.Status.ShouldBe(DesktopNotificationStatus.SessionUnavailable);
-        result.IsSuccess.ShouldBeFalse();
-        result.Reason.ShouldNotBeNull().ShouldStartWith("toasts unavailable in this session (0x80070490, ERROR_NOT_FOUND), RDP or no interactive desktop");
-        result.Reason.ShouldContain("'Some.App'");
+    [Theory]
+    [InlineData(1, "DisabledForApplication")]
+    [InlineData(2, "DisabledForUser")]
+    [InlineData(3, "DisabledByGroupPolicy")]
+    [InlineData(4, "DisabledByManifest")]
+    [InlineData(9, "setting 9")]
+    public void A_setting_that_turns_toasts_off_is_refused_by_name(int setting, string name)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = WinRtToast.SettingRefusal(hr: 0, setting).ShouldNotBeNull();
+
+        result.Status.ShouldBe(DesktopNotificationStatus.Disabled);
+        result.Reason.ShouldNotBeNull().ShouldContain(name);
+    }
+
+    [Fact]
+    public void Another_failure_of_the_setting_read_fails_naming_the_call()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = WinRtToast.SettingRefusal(unchecked((int)0x80004005), setting: 0).ShouldNotBeNull();
+
+        result.Status.ShouldBe(DesktopNotificationStatus.Failed);
+        result.Reason.ShouldBe("IToastNotifier.get_Setting failed: HRESULT 0x80004005");
     }
 }

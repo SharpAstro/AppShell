@@ -34,7 +34,9 @@ internal static unsafe partial class WinRtToast
 
     private const int RpcEChangedMode = unchecked((int)0x80010106);
 
-    /// <summary>ERROR_NOT_FOUND as an HRESULT: what the notifier answers for an app id nothing registers.</summary>
+    /// <summary>ERROR_NOT_FOUND as an HRESULT: what the notifier's setting read answers for an app id that has not
+    /// shown a toast yet (see <see cref="SettingRefusal"/>), and what the history answers for a toast that is not
+    /// there.</summary>
     internal const int ErrorNotFound = unchecked((int)0x80070490);
 
     // Windows.UI.Notifications.NotificationSetting
@@ -43,8 +45,8 @@ internal static unsafe partial class WinRtToast
         "Enabled", "DisabledForApplication", "DisabledForUser", "DisabledByGroupPolicy", "DisabledByManifest",
     ];
 
-    /// <summary>Whether a toast would show for <paramref name="appId"/> (null: the default notifier of a packaged
-    /// process): the notifier's setting is read, nothing is shown.</summary>
+    /// <summary>Whether Windows would take a toast for <paramref name="appId"/> (null: the default notifier of a
+    /// packaged process): the notifier is made and its setting read, nothing is shown.</summary>
     internal static DesktopNotificationResult Probe(string? appId) => Run(refs =>
         Notifier(refs, appId, out var refusal) == 0 ? refusal! : DesktopNotificationResult.Succeeded());
 
@@ -146,7 +148,7 @@ internal static unsafe partial class WinRtToast
     }
 
     /// <summary>Creates the notifier for <paramref name="appId"/> and reads its setting; shows nothing. What a test
-    /// calls to pin what Windows answers for an app id that nothing registers.</summary>
+    /// calls to pin what an app id that has never shown a toast is answered.</summary>
     internal static DesktopNotificationResult ReadSetting(string? appId) => Probe(appId);
 
     // Each entry point enters the apartment before its refs and leaves it after them: a using releases in reverse
@@ -165,8 +167,7 @@ internal static unsafe partial class WinRtToast
         }
     }
 
-    // The notifier of appId (the default one for null) with its setting read, or 0 and the refusal. The read fails
-    // with ERROR_NOT_FOUND for an app id that no Start menu shortcut and no registry key registers.
+    // The notifier of appId (the default one for null) with its setting read, or 0 and the refusal.
     private static nint Notifier(Refs refs, string? appId, out DesktopNotificationResult? refusal)
     {
         refusal = null;
@@ -187,7 +188,9 @@ internal static unsafe partial class WinRtToast
 
         if (hr < 0)
         {
-            refusal = hr == ErrorNotFound ? NotFound(appId, call, hr, ReferenceNotFound(refs, statics))
+            var id = appId is null ? "of this process" : $"'{appId}'";
+            refusal = hr == ErrorNotFound
+                ? DesktopNotificationResult.NoIdentity($"Windows made no notifier for the app id {id}: {Describe(call, hr)}")
                 : DesktopNotificationResult.Failed(Describe(call, hr));
             return 0;
         }
@@ -196,56 +199,40 @@ internal static unsafe partial class WinRtToast
 
         int setting;
         hr = ((delegate* unmanaged[Stdcall]<nint, int*, int>)Slot(notifier, 8))(notifier, &setting);
-        if (hr < 0)
-        {
-            refusal = hr == ErrorNotFound
-                ? NotFound(appId, "IToastNotifier.get_Setting", hr, ReferenceNotFound(refs, statics))
-                : DesktopNotificationResult.Failed(Describe("IToastNotifier.get_Setting", hr));
-            return 0;
-        }
-
-        if (setting != 0)
-        {
-            var name = (uint)setting < SettingNames.Length ? SettingNames[setting] : $"setting {setting}";
-            refusal = DesktopNotificationResult.Disabled(
-                $"Windows will not show this app's toasts: the notifier's setting is {name}.");
-            return 0;
-        }
-
-        return notifier;
+        refusal = SettingRefusal(hr, setting);
+        return refusal is null ? notifier : 0;
     }
 
-    /// <summary>An app id every Windows desktop registers through its Start menu shortcut (Windows PowerShell's).
-    /// Asked about only when the app's own id was answered with ERROR_NOT_FOUND, to tell which of two things that
-    /// answer means.</summary>
-    internal const string ReferenceAppId = @"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe";
-
-    // True when Windows answers ERROR_NOT_FOUND for the reference app id as well: then the session has no toast
-    // delivery at all (remote desktop, no interactive desktop), and the app's own registration is not the cause.
-    private static bool ReferenceNotFound(Refs refs, nint statics)
+    /// <summary>
+    /// What the notifier's setting read means for a toast: null when one may be shown, otherwise the refusal. Pure,
+    /// for tests.
+    ///
+    /// <para>ERROR_NOT_FOUND is not a refusal. Windows keeps an app's notification settings under
+    /// <c>HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\&lt;app id&gt;</c> and makes that key on
+    /// the app id's first toast, so the read answers ERROR_NOT_FOUND for every app id that has not shown one yet,
+    /// a registered one included, in a console and a remote desktop session alike. Nothing has turned such an app
+    /// off; pilot's <c>WinRtToastRunner</c> never reads the setting, and the Windows Community Toolkit's
+    /// <c>ToastNotifierCompat.Setting</c> answers Enabled for the same error.</para>
+    /// </summary>
+    internal static DesktopNotificationResult? SettingRefusal(int hr, int setting)
     {
-        nint notifier;
-        var hr = ((delegate* unmanaged[Stdcall]<nint, nint, nint*, int>)Slot(statics, 7))(statics, refs.HString(ReferenceAppId), &notifier);
-        if (hr < 0)
+        if (hr == ErrorNotFound)
         {
-            return hr == ErrorNotFound;
+            return null;
         }
 
-        refs.Own(notifier);
-        int setting;
-        return ((delegate* unmanaged[Stdcall]<nint, int*, int>)Slot(notifier, 8))(notifier, &setting) == ErrorNotFound;
-    }
+        if (hr < 0)
+        {
+            return DesktopNotificationResult.Failed(Describe("IToastNotifier.get_Setting", hr));
+        }
 
-    /// <summary>What ERROR_NOT_FOUND from <paramref name="call"/> means: no toast delivery in this session when the
-    /// reference app id is refused the same way, otherwise an app id that nothing registers. Pure, for tests.</summary>
-    internal static DesktopNotificationResult NotFound(string? appId, string call, int hr, bool referenceAlsoNotFound)
-    {
-        var id = appId is null ? "of this process" : $"'{appId}'";
-        return referenceAlsoNotFound
-            ? DesktopNotificationResult.SessionUnavailable(
-                $"toasts unavailable in this session (0x{hr:X8}, ERROR_NOT_FOUND), RDP or no interactive desktop: {Describe(call, hr)} for the app id {id}, and Windows refuses its own reference app id the same way")
-            : DesktopNotificationResult.NoIdentity(
-                $"the app id {id} is registered nowhere (no Start menu shortcut and no registry key carries it): {Describe(call, hr)}, while Windows knows its own reference app id");
+        if (setting == 0)
+        {
+            return null;
+        }
+
+        var name = (uint)setting < SettingNames.Length ? SettingNames[setting] : $"setting {setting}";
+        return DesktopNotificationResult.Disabled($"Windows will not show this app's toasts: the notifier's setting is {name}.");
     }
 
     private static nint Build(Refs refs, string xml, string? tag, string? group)

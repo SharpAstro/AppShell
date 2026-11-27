@@ -25,9 +25,9 @@ public enum DesktopNotificationStatus
     Succeeded,
 
     /// <summary>Windows has no name for the app to show the toast under: <see cref="AppIdentity.Claim(string, string)"/>
-    /// was not called (or the shell could not name the app from it) and no app id was given, or no Start menu shortcut
-    /// and no registry key registers the app id (Windows answers ERROR_NOT_FOUND, 0x80070490, for it while it does
-    /// know a stock app id).</summary>
+    /// and <see cref="AppIdentity.Register(string, string, string?)"/> were not called (or the shell could not name the
+    /// app from them) and no app id was given, or Windows made no notifier for the app id (ERROR_NOT_FOUND,
+    /// 0x80070490).</summary>
     NoIdentity,
 
     /// <summary>Windows is set not to show this app's toasts (turned off for the app or the person, by group
@@ -39,11 +39,6 @@ public enum DesktopNotificationStatus
 
     /// <summary>A call to the system failed; the reason names the call and its HRESULT.</summary>
     Failed,
-
-    /// <summary>Windows has no toast delivery in this session: a remote desktop session, or one with no interactive
-    /// desktop. Windows answers ERROR_NOT_FOUND (0x80070490) for every app id there, a stock one included, so no
-    /// registration of the app's own would help. Not a failure of the app.</summary>
-    SessionUnavailable,
 }
 
 /// <summary>A toast still in the notification centre.</summary>
@@ -86,9 +81,6 @@ public sealed record DesktopNotificationResult
     internal static DesktopNotificationResult Disabled(string reason) => new(DesktopNotificationStatus.Disabled, reason, None);
 
     internal static DesktopNotificationResult Failed(string reason) => new(DesktopNotificationStatus.Failed, reason, None);
-
-    internal static DesktopNotificationResult SessionUnavailable(string reason) =>
-        new(DesktopNotificationStatus.SessionUnavailable, reason, None);
 
     internal static DesktopNotificationResult Unsupported() =>
         new(DesktopNotificationStatus.Unsupported, "desktop notifications are only implemented on Windows", None);
@@ -247,8 +239,9 @@ public static class DesktopNotification
             : WinRtToast.Delivered(identity.AppId);
     }
 
-    /// <summary>Whether a toast would show right now: the identity resolves, the app id is registered and Windows has
-    /// not turned the app's toasts off. Shows nothing.</summary>
+    /// <summary>Whether Windows would take a toast right now: the identity resolves, Windows makes a notifier for the
+    /// app id, and its toasts are not turned off. Shows nothing. An app id that has not shown a toast yet has no
+    /// setting to read (Windows makes it on the first toast) and is not refused for that.</summary>
     /// <param name="appId">The app id to ask about, in place of the claimed one.</param>
     /// <returns><see cref="DesktopNotificationStatus.Succeeded"/> when one would; otherwise the status and reason
     /// for why not. Never throws for the system.</returns>

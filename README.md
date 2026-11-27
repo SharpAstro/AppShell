@@ -110,8 +110,9 @@ so it is AOT-clean from plain `net10.0`.
 
 **Call `AppIdentity.Claim` first.** Windows shows a toast under an app, and the app id and shortcut that `Claim`
 gives the process are what give the toast its name and icon. A toast is shown under, in order: the
-`AppId` in the options, the id of a successful `Claim`, the process's own explicit app id, and for a packaged
-process the default notifier (its manifest names the app). With none of these the result is `NoIdentity`.
+`AppId` in the options, the id of a successful `Claim`, the id of a successful `AppIdentity.Register` (see below),
+the process's own explicit app id, and for a packaged process the default notifier (its manifest names the app).
+With none of these the result is `NoIdentity`.
 
 ```csharp
 AppIdentity.Claim("MyCompany.Viewer", "Viewer");
@@ -133,13 +134,16 @@ dismisses it, with the system's own Dismiss button. `Urgent` is a reminder that 
 Disturb when the person allows that for the app, so keep it for the most serious level.
 
 Every call returns one `DesktopNotificationResult`: a `Status` (`Succeeded`, `NoIdentity`, `Disabled`,
-`Unsupported`, `Failed`, `SessionUnavailable`) and a `Reason` that names the failing call and its HRESULT.
-`SessionUnavailable` is a session with no toast delivery (remote desktop, no interactive desktop): Windows answers
-ERROR_NOT_FOUND (0x80070490) there for a stock app id as well as the app's own, which is how it is told apart from an
-app id nothing registers (`NoIdentity`). Nothing throws for the system;
-only a wrong argument (a blank title, a tag without a group) throws `ArgumentException`. `Probe()` says whether a toast
-would show without showing one, and `DesktopNotification.LogOnce(log)` (or an `ILogger`) says once why toasts are
-unavailable and nothing when they are. Off Windows every call returns `Unsupported` for now.
+`Unsupported`, `Failed`) and a `Reason` that names the failing call and its HRESULT. Nothing throws for the system;
+only a wrong argument (a blank title, a tag without a group) throws `ArgumentException`. `Probe()` says whether
+Windows would take a toast without showing one, and `DesktopNotification.LogOnce(log)` (or an `ILogger`) says once
+why toasts are unavailable and nothing when they are. Off Windows every call returns `Unsupported` for now.
+
+`Disabled` comes from the notifier's setting (turned off for the app or the person, by group policy or by the
+manifest). An app id that has never shown a toast has no setting yet: Windows keeps it under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\<app id>`, makes it on the first toast, and
+until then answers the read with ERROR_NOT_FOUND (0x80070490), in a console and a remote desktop session alike.
+That answer is not a refusal, so the first toast is shown.
 
 ### A process with no shortcut: the registry identity
 
@@ -204,13 +208,19 @@ comes back from `TryRead` is an id to look up, never a command, a path to run or
 
 ```
 dotnet publish samples/ToastSample/ToastSample.csproj -c Release -r win-x64
-samples\ToastSamplein\Release
-et10.0\win-x64\publish\ToastSample.exe --self-test
+samples\ToastSample\bin\Release\net10.0\win-x64\publish\ToastSample.exe --self-test
 ```
 
-`--self-test` runs, for the claimed (shortcut) identity and for a registry-only identity: show, show again with the same tag (still exactly one delivered), a Reminder, an Urgent toast, and a withdraw that leaves none. For the claimed identity it also starts the toast's launch link through the shell, as a click does, and checks that the running instance receives the same payload. It exits 0 on success, 1 on a failure, 2 when the app id cannot show toasts (no identity, or toasts turned off for it), and 3 when the session has no toast delivery at all: Windows answers ERROR_NOT_FOUND (0x80070490) for every app id, its own included, in a remote desktop session or one with no interactive desktop. `DesktopNotification` reports that last case as `DesktopNotificationStatus.SessionUnavailable`. Exit 3 means toast display was not proven, so run the self-test at the machine's console to prove it.
+`--self-test` runs, for the claimed (shortcut) identity and for a registry-only identity: show, show again with the
+same tag (still exactly one delivered), a Reminder, an Urgent toast, and a withdraw that leaves none. For the claimed
+identity it also starts the toast's launch link through the shell, as a click does, and checks that the running
+instance receives the same payload within 15 seconds. It exits 0 on success, 1 on a failure, and 2 when the app id
+cannot show toasts here (no identity, or toasts turned off for it). Every step goes to the window, to stdout and to
+`ToastSample.log` beside the exe.
 
-Manual check for a person (a script cannot click): run `ToastSample.exe`, minimise the window, click the toast, and watch the window come forward with the payload logged. Then run `ToastSample.exe --clean` to remove the shortcut, the scheme key, the AppUserModelId key and the toasts.
+Manual check for a person (a script cannot click): run `ToastSample.exe`, minimise the window, click the toast, and
+watch the window come forward with the payload logged. Then run `ToastSample.exe --clean` to remove the shortcut, the
+scheme key, the AppUserModelId key and the toasts.
 
 ## Desktop appearance
 
