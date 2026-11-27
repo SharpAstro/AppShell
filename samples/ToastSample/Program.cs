@@ -33,6 +33,7 @@ internal static class Program
         return mode switch
         {
             "--clean" => Sample.Clean(),
+            "--probe" => Sample.ProbeOnly(args.Length > 1 ? args[1] : null),
             "--self-test" => Sample.Window(selfTest: true, null),
             _ => Sample.Window(selfTest: false, mode),
         };
@@ -352,6 +353,15 @@ internal static unsafe class Sample
         Step($"{label}: Withdraw A and B answer success", wa.IsSuccess && wb.IsSuccess, wa.IsSuccess && wb.IsSuccess ? "" : $" ({wa.Reason} {wb.Reason})");
         Step($"{label}: after the withdraw neither A nor B is delivered", Count(appId, tagA) == 0 && Count(appId, tagB) == 0);
         return true;
+    }
+
+    // ---- --probe: asks Windows whether toasts would show under an app id (the claimed one when none is given) ---------
+
+    public static int ProbeOnly(string? appId)
+    {
+        var r = DesktopNotification.Probe(appId);
+        Log($"probe '{appId ?? "(claimed)"}': {r.Status} {r.Reason}");
+        return r.IsSuccess ? 0 : 2;
     }
 
     // ---- --clean ---------------------------------------------------------------------------------------------------
