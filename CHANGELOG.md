@@ -4,6 +4,19 @@ Release notes live here rather than beside the version number: the number is one
 `Directory.Build.props` and nothing reads prose from there. Newest first, one section per
 `MAJOR.MINOR`.
 
+## 1.7
+
+- **`DesktopNotification`: OS toasts shown, replaced and withdrawn in process, managed and AOT-safe.** `Show`,
+  `Withdraw`, `GetDelivered` (the toasts still in the notification centre) and `Probe` call the WinRT toast API by
+  vtable through `LibraryImport`, under the app id `AppIdentity.Claim` gave the process (then the options' app id,
+  the process's explicit app id, or the default notifier of a packaged process). Urgency is `Normal`, `Reminder`
+  or `Urgent`; a tag and group replace and withdraw; long tags are mapped to a stable short form; the text is
+  flattened, cleaned of what XML cannot hold, and cut. Every call returns one `DesktopNotificationResult` (status
+  plus a reason naming the call and HRESULT) and never throws for the system; `Unsupported` off Windows.
+  `DesktopNotification.LogOnce` says once why toasts are unavailable. `AppIdentity` now records the id of a
+  successful `Claim`. Ported from pilot's `WinRtToastRunner` (SharpAstro/pilot#1378). (AppShell#7; consumers:
+  SharpAstro/tianwen#2507, SharpAstro/pilot#1356.)
+
 ## 1.6
 
 - **`InstanceGate.IsKnownAbsent(channel)` is public: the non-claiming "is the instance held" probe.** It claims
